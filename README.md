@@ -31,3 +31,5 @@ To make static files work in production, you have to run this command. It collec
 ```sh
 $ python manage.py collectstatic
 ```
+
+**Do not edit files in the root `/static/` folder directly. Changes need to be made in the `/<module_name>/static/` folders instead**
