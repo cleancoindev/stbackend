@@ -11,6 +11,14 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 """
 
 from pathlib import Path
+import os
+
+env = 'dev'
+try:
+    if os.environ['SERVER_SOFTWARE'].startswith('Google'):
+        env = 'prod'
+except KeyError:
+    pass
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -74,12 +82,26 @@ WSGI_APPLICATION = 'stbackend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+if env == 'dev':
+    # local sqlite3 db 
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
+elif env == 'prod':
+    # Production MySql Server (source: https://medium.com/@omaraamir19966/connect-django-with-mysql-database-f946d0f6f9e3)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': 'djangodatabase',
+            'USER': 'dbadmin',
+            'PASSWORD': '12345',
+            'HOST': 'localhost',
+            'PORT': '3306',
+        }
+    }
 
 
 # Password validation
