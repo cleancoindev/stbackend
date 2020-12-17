@@ -22,13 +22,17 @@ Unsuccessful requests will return an "error" object:
 {
     "error": {
         "code": 400,
-        "message": "Required parameter missing: token"
+        "message": "Required parameter missing: address"
     }
 }
 '''
 
+import json
 from django.http import HttpResponse, JsonResponse
 from django.views import View
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+import urllib.parse
 
 
 def index(request):
@@ -38,52 +42,151 @@ def index(request):
     return HttpResponse("Index")
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class ItemView(View):
     '''
     Returns a single item for the detail page
     '''
 
-    def get(self, request):
+    def get(self, request, address):
         '''
-        Params: token (required)
+        Params: address (required)
         '''
-        token = request.GET.get("token")
 
-        if not token:
+        if not address:
             # Return early with error message
             status_code = 400
             response_body = {
                         "error": {
                             "code": status_code,
-                            "message": "Required parameter missing: token"
+                            "message": "Required parameter missing: address"
                         }
                     }
             return JsonResponse(response_body, status=status_code)
-        
-        # TBD: Check to see if it's a valid token. 
+
+        # TBD: Check to see if it's a valid address.
         # TBD: If not valid, return with error message
-        
+
         response_body = {
                         "data": {
-                            "token": token,
+                            "address": address,
                             "name": "Name",
                             "creator": "Creator",
                             "owner": "Owner",
-                            "price": "Price"
+                            "price": "Price",
+                            "thumbnail_url": ""
                         }
                     }
         return JsonResponse(response_body)
 
+    def post(self, request, address):
+        '''
+        Params:
+        1. address (required - in path)
+        2. action (required - in body) - values include "like" & "unlike"
+        '''
+
+        json_body = json.loads(request.body.decode())
+        action = json_body.get('action')
+
+        #action = request.POST.get("action") # this is the syntax for forms
+
+        if not address:
+            # Return early with error message
+            status_code = 400
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Required parameter missing: address"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+        if not action:
+            # Return early with error message
+            status_code = 400
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Required parameter missing: action"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+        if not action in ["like", "unlike"]:
+            # Return early with error message
+            status_code = 400
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Invalid value for parameter: action"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+        # TBD: Process the Like/Unlike
+
+        # Return empty 200
+        return HttpResponse("")
+
 
 class SearchView(View):
     '''
-    Testing HTTP methods
+    Returns list of items based on search query
     '''
 
     def get(self, request):
-        '''Get method'''
-        # <view logic>
-        return JsonResponse({'method':'get'})
+        '''
+        Params: q (required - in query string)
+        '''
+
+        query = request.GET.get('q')
+        if not query or query.strip()=="":
+            # Return early with error message
+            status_code = 400
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Required parameter missing or blank: query"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+        unquoted_query = urllib.parse.unquote(query)
+
+        # TBD: perform the search
+
+        items_list = [
+            {
+                "address": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
+                "name": "Name",
+                "creator": "Creator",
+                "owner": "Owner",
+                "price": "Price",
+                "thumbnail_url": "",
+                "sharable_link": "",
+                "history": []
+            },
+            {
+                "address": "address2",
+                "name": "Name 2",
+                "creator": "Creator 2",
+                "owner": "Owner 2",
+                "price": "Price 2",
+                "thumbnail_url": "",
+                "sharable_link": "",
+                "history": []
+            }
+        ]
+
+        # Could add in results_count, pages, etc. under data
+        response_body = {
+                        "data": {
+                            "query": unquoted_query,
+                            "results": items_list
+                        }
+                    }
+        return JsonResponse(response_body)
 
 
 class FeaturedView(View):
@@ -92,9 +195,44 @@ class FeaturedView(View):
     '''
 
     def get(self, request):
-        '''Get method'''
-        # <view logic>
-        return JsonResponse({'method':'get'})
+        '''
+        Params: none
+        '''
+
+        items_list = [
+            {
+                "address": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
+                "name": "Name",
+                "creator": "Creator",
+                "owner": "Owner",
+                "price": "Price",
+                "thumbnail_url": "",
+                "like_count": 232,
+                "sharable_link": ""
+            },
+            {
+                "address": "address2",
+                "name": "Name 2",
+                "creator": "Creator 2",
+                "owner": "Owner 2",
+                "price": "Price 2",
+                "thumbnail_url": "",
+                "like_count": 32,
+                "sharable_link": ""
+            },
+            {
+                "address": "address2",
+                "name": "Name 2",
+                "creator": "Creator 2",
+                "owner": "Owner 2",
+                "price": "Price 2",
+                "thumbnail_url": "",
+                "like_count": 32,
+                "sharable_link": ""
+            }
+        ]
+        response_body = { "data": items_list }
+        return JsonResponse(response_body)
 
 
 class LeaderboardView(View):
@@ -103,39 +241,135 @@ class LeaderboardView(View):
     '''
 
     def get(self, request):
-        '''Get method'''
-        # <view logic>
-        return JsonResponse({'method':'get'})
+        '''
+        Params: none
+        '''
+
+        leaderboard_list = [
+            {
+                "rank": 1,
+                "creator": {
+                    "name": "Beeple",
+                    "thumbnail_url": ""
+                },
+                "item": {
+                    "address": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
+                    "name": "Name",
+                    "thumbnail_url": "",
+                    "like_count": 3521
+                }
+            },
+            {
+                "rank": 2,
+                "creator": {
+                    "name": "Fewocious",
+                    "thumbnail_url": ""
+                },
+                "item": {
+                    "address": "ADDRESS2",
+                    "name": "Name",
+                    "thumbnail_url": "",
+                    "like_count": 2283
+                }
+            },
+            {
+                "rank": 3,
+                "creator": {
+                    "name": "3LAU",
+                    "thumbnail_url": ""
+                },
+                "item": {
+                    "address": "address3",
+                    "name": "Name",
+                    "thumbnail_url": "",
+                    "like_count": 1902
+                }
+            }
+        ]
+        response_body = { "data": leaderboard_list }
+        return JsonResponse(response_body)
 
 
-
-class TestView(View):
+class ProfileView(View):
     '''
-    Testing HTTP methods
+    Lists the Art owned for a username or crypto address
     '''
 
-    def get(self, request):
-        '''Get method'''
-        # <view logic>
-        return JsonResponse({'method':'get'})
+    def get(self, request, username_or_address):
+        '''
+        Params: username_or_address (required - in path)
+        '''
 
-    def post(self, request):
-        '''Post method'''
-        # <view logic>
-        return JsonResponse({'method':'post'})
+        owned_list = [
+            {
+                "address": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
+                "name": "Name",
+                "creator": "Creator",
+                "owner": "Owner",
+                "price": "Price",
+                "thumbnail_url": "",
+                "like_count": 232,
+                "sharable_link": ""
+            },
+            {
+                "address": "address2",
+                "name": "Name 2",
+                "creator": "Creator 2",
+                "owner": "Owner 2",
+                "price": "Price 2",
+                "thumbnail_url": "",
+                "like_count": 32,
+                "sharable_link": ""
+            },
+            {
+                "address": "address3",
+                "name": "Name 2",
+                "creator": "Creator 2",
+                "owner": "Owner 2",
+                "price": "Price 2",
+                "thumbnail_url": "",
+                "like_count": 32,
+                "sharable_link": ""
+            }
+        ]
 
-    def put(self, request):
-        '''Put method'''
-        # <view logic>
-        return JsonResponse({'method':'put'})
-
-    def patch(self, request):
-        '''Patch method'''
-        # <view logic>
-        return JsonResponse({'method':'patch'})
-
-    def delete(self, request):
-        '''Delete method'''
-        # <view logic>
-        return JsonResponse({'method':'delete'})
-        
+        liked_list = [
+            {
+                "address": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
+                "name": "Name",
+                "creator": "Creator",
+                "owner": "Owner",
+                "price": "Price",
+                "thumbnail_url": "",
+                "like_count": 232,
+                "sharable_link": ""
+            },
+            {
+                "address": "address2",
+                "name": "Name 2",
+                "creator": "Creator 2",
+                "owner": "Owner 2",
+                "price": "Price 2",
+                "thumbnail_url": "",
+                "like_count": 32,
+                "sharable_link": ""
+            },
+            {
+                "address": "address3",
+                "name": "Name 2",
+                "creator": "Creator 2",
+                "owner": "Owner 2",
+                "price": "Price 2",
+                "thumbnail_url": "",
+                "like_count": 32,
+                "sharable_link": ""
+            }
+        ]
+        response_body = {
+            "data": {
+                "display_name": username_or_address,
+                "owned": owned_list,
+                "liked": liked_list
+            }
+        }
+        return JsonResponse(response_body)
