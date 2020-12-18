@@ -1,7 +1,28 @@
 # Showtime Django Backend
 
-This Django app serves up crypto goodness to the React frontend.
+This Django app serves up crypto goodness to the React frontend. The production endpoint can be found at `https://showtimenft.wl.r.appspot.com/`
 
+## Usage examples
+
+**Item**
+
+GET: /api/v1/item/0x752aa32a2cc49aed842874326379ea1f95b1cbe6
+
+POST: /api/v1/item/0x752aa32a2cc49aed842874326379ea1f95b1cbe6 // json body: { "action": "like", "user_id": "1234567" }
+
+**Search**
+
+GET: /api/v1/search?q=Lil+Miquela
+
+**Homepage**
+
+GET: /api/v1/featured
+
+GET: /api/v1/leaderboard
+
+**Profile**
+
+GET: /api/v1/profile/0xd3e9d60e4e4de615124d5239219f32946d10151d
 
 ## Running locally
 
