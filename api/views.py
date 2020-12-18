@@ -28,11 +28,11 @@ Unsuccessful requests will return an "error" object:
 '''
 
 import json
+import urllib.parse
 from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-import urllib.parse
 
 
 def index(request):
@@ -48,59 +48,77 @@ class ItemView(View):
     Returns a single item for the detail page
     '''
 
-    def get(self, request, address):
+    def get(self, request, token):
         '''
-        Params: address (required)
+        Params: token (required)
         '''
 
-        if not address:
+        if not token:
             # Return early with error message
             status_code = 400
             response_body = {
                         "error": {
                             "code": status_code,
-                            "message": "Required parameter missing: address"
+                            "message": "Required parameter missing: token"
                         }
                     }
             return JsonResponse(response_body, status=status_code)
 
-        # TBD: Check to see if it's a valid address.
+        # TBD: Check to see if it's a valid token.
         # TBD: If not valid, return with error message
 
         response_body = {
                         "data": {
-                            "address": address,
+                            "token": token,
                             "name": "Name",
                             "creator": "Creator",
                             "owner": "Owner",
                             "price": "Price",
-                            "thumbnail_url": ""
+                            "thumbnail_url": "",
+                            "sharable_link": ""
                         }
                     }
         return JsonResponse(response_body)
 
-    def post(self, request, address):
+    def post(self, request, token):
         '''
         Params:
-        1. address (required - in path)
+        1. token (required - in path)
         2. action (required - in body) - values include "like" & "unlike"
+        3. user_id (required - in body)
         '''
 
         json_body = json.loads(request.body.decode())
         action = json_body.get('action')
+        user_id = json_body.get('user_id')
 
         #action = request.POST.get("action") # this is the syntax for forms
 
-        if not address:
+        if not token:
             # Return early with error message
             status_code = 400
             response_body = {
                         "error": {
                             "code": status_code,
-                            "message": "Required parameter missing: address"
+                            "message": "Required parameter missing: token"
                         }
                     }
             return JsonResponse(response_body, status=status_code)
+
+        # TBD: Check to make sure it's a valid token. Return error if not.
+
+        if not user_id:
+            # Return early with error message
+            status_code = 400
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Required parameter missing: user_id"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+        # TBD: Check to make sure it's a valid user. Return error if not.
 
         if not action:
             # Return early with error message
