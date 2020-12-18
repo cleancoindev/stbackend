@@ -10,15 +10,12 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.1/ref/settings/
 """
 
+# To Deploy: gcloud app deploy ~/Documents/GitHub/stbackend/app.yaml --project=showtimenft
+# Production URL: https://showtimenft.wl.r.appspot.com/api/
+
 from pathlib import Path
 import os
 
-env = 'dev'
-try:
-    if os.environ['SERVER_SOFTWARE'].startswith('Google'):
-        env = 'prod'
-except KeyError:
-    pass
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -30,10 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'lv&emqkk2jt(=de_mfbf1)i4diy5bvj1+rj27=u$1m(!mz6o$%'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost','127.0.0.1', 'showtimenft.wl.r.appspot.com']
 
 
 # Application definition
@@ -82,26 +76,28 @@ WSGI_APPLICATION = 'stbackend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.1/ref/settings/#databases
 
-if env == 'dev':
-    # local sqlite3 db 
+
+if os.getenv('GAE_APPLICATION', None):
+    DEBUG = False
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'HOST': '/cloudsql/showtimenft:us-west2:instance1',
+            'NAME': 'database1',
+            'USER': 'webapp',
+            'PASSWORD': '9wLAHT1be26w',
+            'OPTIONS': {'charset': 'utf8mb4'},
+        }
+    }
+else:
+    DEBUG = True
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-elif env == 'prod':
-    # Production MySql Server (source: https://medium.com/@omaraamir19966/connect-django-with-mysql-database-f946d0f6f9e3)
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.mysql',
-            'NAME': 'djangodatabase',
-            'USER': 'dbadmin',
-            'PASSWORD': '12345',
-            'HOST': 'localhost',
-            'PORT': '3306',
-        }
-    }
+
 
 
 # Password validation

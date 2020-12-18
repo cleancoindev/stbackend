@@ -74,8 +74,7 @@ class ItemView(View):
                             "creator": "Creator",
                             "owner": "Owner",
                             "price": "Price",
-                            "thumbnail_url": "",
-                            "sharable_link": ""
+                            "thumbnail_url": ""
                         }
                     }
         return JsonResponse(response_body)
@@ -176,23 +175,21 @@ class SearchView(View):
 
         items_list = [
             {
-                "address": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
+                "token": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
                 "name": "Name",
                 "creator": "Creator",
                 "owner": "Owner",
                 "price": "Price",
                 "thumbnail_url": "",
-                "sharable_link": "",
                 "history": []
             },
             {
-                "address": "address2",
+                "token": "token2",
                 "name": "Name 2",
                 "creator": "Creator 2",
                 "owner": "Owner 2",
                 "price": "Price 2",
                 "thumbnail_url": "",
-                "sharable_link": "",
                 "history": []
             }
         ]
@@ -219,34 +216,31 @@ class FeaturedView(View):
 
         items_list = [
             {
-                "address": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
+                "token": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
                 "name": "Name",
                 "creator": "Creator",
                 "owner": "Owner",
                 "price": "Price",
                 "thumbnail_url": "",
-                "like_count": 232,
-                "sharable_link": ""
+                "like_count": 232
             },
             {
-                "address": "address2",
+                "token": "token2",
                 "name": "Name 2",
                 "creator": "Creator 2",
                 "owner": "Owner 2",
                 "price": "Price 2",
                 "thumbnail_url": "",
-                "like_count": 32,
-                "sharable_link": ""
+                "like_count": 32
             },
             {
-                "address": "address2",
+                "token": "token2",
                 "name": "Name 2",
                 "creator": "Creator 2",
                 "owner": "Owner 2",
                 "price": "Price 2",
                 "thumbnail_url": "",
-                "like_count": 32,
-                "sharable_link": ""
+                "like_count": 32
             }
         ]
         response_body = { "data": items_list }
@@ -271,7 +265,7 @@ class LeaderboardView(View):
                     "thumbnail_url": ""
                 },
                 "item": {
-                    "address": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
+                    "token": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
                     "name": "Name",
                     "thumbnail_url": "",
                     "like_count": 3521
@@ -284,7 +278,7 @@ class LeaderboardView(View):
                     "thumbnail_url": ""
                 },
                 "item": {
-                    "address": "ADDRESS2",
+                    "token": "token2",
                     "name": "Name",
                     "thumbnail_url": "",
                     "like_count": 2283
@@ -297,7 +291,7 @@ class LeaderboardView(View):
                     "thumbnail_url": ""
                 },
                 "item": {
-                    "address": "address3",
+                    "token": "token3",
                     "name": "Name",
                     "thumbnail_url": "",
                     "like_count": 1902
@@ -320,7 +314,7 @@ class ProfileView(View):
 
         owned_list = [
             {
-                "address": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
+                "token": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
                 "name": "Name",
                 "creator": "Creator",
                 "owner": "Owner",
@@ -330,7 +324,7 @@ class ProfileView(View):
                 "sharable_link": ""
             },
             {
-                "address": "address2",
+                "token": "token2",
                 "name": "Name 2",
                 "creator": "Creator 2",
                 "owner": "Owner 2",
@@ -340,7 +334,7 @@ class ProfileView(View):
                 "sharable_link": ""
             },
             {
-                "address": "address3",
+                "token": "token3",
                 "name": "Name 2",
                 "creator": "Creator 2",
                 "owner": "Owner 2",
@@ -353,7 +347,7 @@ class ProfileView(View):
 
         liked_list = [
             {
-                "address": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
+                "token": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
                 "name": "Name",
                 "creator": "Creator",
                 "owner": "Owner",
@@ -363,7 +357,7 @@ class ProfileView(View):
                 "sharable_link": ""
             },
             {
-                "address": "address2",
+                "token": "token2",
                 "name": "Name 2",
                 "creator": "Creator 2",
                 "owner": "Owner 2",
@@ -373,7 +367,7 @@ class ProfileView(View):
                 "sharable_link": ""
             },
             {
-                "address": "address3",
+                "token": "token3",
                 "name": "Name 2",
                 "creator": "Creator 2",
                 "owner": "Owner 2",
