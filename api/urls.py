@@ -9,7 +9,7 @@ app_name = 'api'
 
 urlpatterns = [
     url(r'^$', views.index, name='index'),
-    url(r'^v1/item/(?P<token>[0-9a-z]+)$', views.ItemView.as_view(), name='item'),
+    url(r'^v1/token/(?P<contract_token_id>[0-9a-z_]+)$', views.TokenView.as_view(), name='token'),
     url(r'^v1/search$', views.SearchView.as_view(), name='search'),
     url(r'^v1/featured$', views.FeaturedView.as_view(), name='featured'),
     url(r'^v1/leaderboard$', views.LeaderboardView.as_view(), name='leaderboard'),
@@ -19,8 +19,8 @@ urlpatterns = [
 
 # Usage Examples
 
-# GET: /api/v1/item/0x752aa32a2cc49aed842874326379ea1f95b1cbe6
-# POST: /api/v1/item/0x752aa32a2cc49aed842874326379ea1f95b1cbe6 \
+# GET: /api/v1/token/0x0000000000001b84b1cb32787b0d64758d019317_3259539015542658014133428223780909702996875844353040978646893663363117613056
+# POST: /api/v1/token/0x0000000000001b84b1cb32787b0d64758d019317_3259539015542658014133428223780909702996875844353040978646893663363117613056 \
     # json body: { "action": "like", "user_id": "1234567" }
 # GET: /api/v1/search?q=Lil+Miquela
 # GET: /api/v1/featured

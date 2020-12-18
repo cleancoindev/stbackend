@@ -4,11 +4,11 @@ This Django app serves up crypto goodness to the React frontend. The production 
 
 ## Usage examples
 
-**Item**
+**Token**
 
-GET: `/api/v1/item/0x752aa32a2cc49aed842874326379ea1f95b1cbe6`
+GET: `/api/v1/token/0x0000000000001b84b1cb32787b0d64758d019317_3259539015542658014133428223780909702996875844353040978646893663363117613056`
 
-POST: `/api/v1/item/0x752aa32a2cc49aed842874326379ea1f95b1cbe6` // json body: { "action": "like", "user_id": "1234567" }
+POST: `/api/v1/token/0x0000000000001b84b1cb32787b0d64758d019317_3259539015542658014133428223780909702996875844353040978646893663363117613056` // json body: { "action": "like", "user_id": "1234567" }
 
 **Search**
 

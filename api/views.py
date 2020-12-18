@@ -29,10 +29,24 @@ Unsuccessful requests will return an "error" object:
 
 import json
 import urllib.parse
+import re
 from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from gql import gql, Client
+from gql.transport.requests import RequestsHTTPTransport
+
+
+
+
+
+transport = RequestsHTTPTransport(
+    url='https://api.thegraph.com/subgraphs/name/wighawag/eip721-subgraph',
+    verify=True,
+    retries=3,
+)
+subgraph_client = Client(transport=transport)
 
 
 def index(request):
@@ -43,43 +57,143 @@ def index(request):
 
 
 @method_decorator(csrf_exempt, name='dispatch')
-class ItemView(View):
+class TokenView(View):
     '''
     Returns a single item for the detail page
     '''
 
-    def get(self, request, token):
+    def get(self, request, contract_token_id):
         '''
         Params: token (required)
         '''
 
-        if not token:
+        if not contract_token_id:
             # Return early with error message
             status_code = 400
             response_body = {
                         "error": {
                             "code": status_code,
-                            "message": "Required parameter missing: token"
+                            "message": "Required parameter missing: contract_token_id"
                         }
                     }
             return JsonResponse(response_body, status=status_code)
 
-        # TBD: Check to see if it's a valid token.
-        # TBD: If not valid, return with error message
+        # TBD: Check to see if it's a valid token id format
+        #example: "0x0000000000001b84b1cb32787b0d64758d019317_325953"
+
+        if not bool(re.match(r"0x([0-9a-z]{40})_[0-9]+$", contract_token_id)):
+            # Return early with error message
+            status_code = 400
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "contract_token_id not in expected format"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+
+        # Continue with query
+        # Assuming we're not going to get injected based on token format check above
+
+        query = '''query {{
+                
+                token(id: "{token}") {{
+                    id
+                    contract {{
+                        id
+                    }}
+                    tokenID
+                    owner {{
+                        id
+                    }}
+                    tokenURI
+                }}
+            }}
+        '''.format(token=contract_token_id)
+
+        token_data = subgraph_client.execute(gql(query))
+
+        if not token_data['token']:
+            # Return early with error message
+            status_code = 404
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Token not found"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+
+        #print(token_data)
+
+        # Check if missing token URI
+        token_uri = token_data['token'].get('tokenURI')
+
+        if not token_uri:
+            # Return early with error message
+            status_code = 402
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Token does not contain URI"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+        # Check if URI not json
+        if len(token_uri)<22 or token_uri[:22] != "data:application/json,":
+            # Return early with error message
+            status_code = 402
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Token URI does not contain json"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+
+        token_uri_json = json.loads(token_uri.replace("data:application/json,",""))
+        #print(token_uri_json)
+
+        name = token_uri_json.get("name")
+        if name:
+            name = urllib.parse.unquote(name)
+        description = token_uri_json.get("description")
+        if description:
+            description = urllib.parse.unquote(description)
+        image = token_uri_json.get("image")
+
+        owner_id = None
+        owner = token_data['token'].get("owner")
+        if owner:
+            owner_id = owner.get("id")
+
+        contract_id = None
+        contract = token_data['token'].get('contract')
+        if contract:
+            contract_id = contract.get("id")
 
         response_body = {
                         "data": {
-                            "token": token,
-                            "name": "Name",
-                            "creator": "Creator",
-                            "owner": "Owner",
-                            "price": "Price",
-                            "thumbnail_url": ""
+                            "id": contract_token_id,
+                            "contract_id": contract_id,
+                            "token_id": token_data['token'].get('tokenID'),
+                            "owner_id": owner_id,
+                            "name": name,
+                            "description": description,
+                            "image": image,
+                            #"creator": "Creator",
+                            #"price": "Price",
                         }
                     }
         return JsonResponse(response_body)
 
-    def post(self, request, token):
+
+
+    def post(self, request, contract_token_id):
         '''
         Params:
         1. token (required - in path)
@@ -93,7 +207,7 @@ class ItemView(View):
 
         #action = request.POST.get("action") # this is the syntax for forms
 
-        if not token:
+        if not contract_token_id:
             # Return early with error message
             status_code = 400
             response_body = {
