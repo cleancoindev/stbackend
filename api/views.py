@@ -62,19 +62,19 @@ class TokenView(View):
     Returns a single item for the detail page
     '''
 
-    def get(self, request, address, token_id):
+    def get(self, request, asset_contract_address, token_id):
 
         '''
         Params: token (required)
         '''
 
-        if not address:
+        if not asset_contract_address:
             # Return early with error message
             status_code = 400
             response_body = {
                         "error": {
                             "code": status_code,
-                            "message": "Required parameter missing: address"
+                            "message": "Required parameter missing: asset_contract_address"
                         }
                     }
             return JsonResponse(response_body, status=status_code)
@@ -93,13 +93,13 @@ class TokenView(View):
         # Check to see if it's a valid address format
         # example: "0x0000000000001b84b1cb32787b0d64758d019317"
 
-        if not bool(re.match(r"0x([0-9a-z]{40})+$", address)):
+        if not bool(re.match(r"0x([0-9a-z]{40})+$", asset_contract_address)):
             # Return early with error message
             status_code = 400
             response_body = {
                         "error": {
                             "code": status_code,
-                            "message": "address not in expected format"
+                            "message": "asset_contract_address not in expected format"
                         }
                     }
             return JsonResponse(response_body, status=status_code)
@@ -107,7 +107,7 @@ class TokenView(View):
 
 
         # Continue with query
-        response = requests.get("https://api.opensea.io/api/v1/asset/{address}/{token_id}".format(address=address, token_id=token_id))
+        response = requests.get("https://api.opensea.io/api/v1/asset/{asset_contract_address}/{token_id}".format(asset_contract_address=asset_contract_address, token_id=token_id))
 
         if response.status_code!=200:
             status_code = response.status_code
@@ -120,8 +120,11 @@ class TokenView(View):
             return JsonResponse(response_body, status=status_code)
 
 
-        #For now, just return full opensea API
-        return JsonResponse(response.json())
+        #For now, just return full opensea API response
+        response_body = {
+            "data": response.json()
+        }
+        return JsonResponse(response_body)
 
 
 
@@ -222,7 +225,7 @@ class TokenView(View):
 
 
 
-    def post(self, request, address, token_id):
+    def post(self, request, asset_contract_address, token_id):
         '''
         Params:
         1. address (required - in path)
@@ -237,13 +240,13 @@ class TokenView(View):
 
         #action = request.POST.get("action") # this is the syntax for forms
 
-        if not address:
+        if not asset_contract_address:
             # Return early with error message
             status_code = 400
             response_body = {
                         "error": {
                             "code": status_code,
-                            "message": "Required parameter missing: address"
+                            "message": "Required parameter missing: asset_contract_address"
                         }
                     }
             return JsonResponse(response_body, status=status_code)
@@ -262,13 +265,13 @@ class TokenView(View):
         # Check to see if it's a valid address format
         # example: "0x0000000000001b84b1cb32787b0d64758d019317"
 
-        if not bool(re.match(r"0x([0-9a-z]{40})+$", address)):
+        if not bool(re.match(r"0x([0-9a-z]{40})+$", asset_contract_address)):
             # Return early with error message
             status_code = 400
             response_body = {
                         "error": {
                             "code": status_code,
-                            "message": "address not in expected format"
+                            "message": "asset_contract_address not in expected format"
                         }
                     }
             return JsonResponse(response_body, status=status_code)
@@ -471,84 +474,133 @@ class LeaderboardView(View):
 
 class ProfileView(View):
     '''
-    Lists the Art owned for a username or crypto address
+    Lists the tokens owned for an address
     '''
 
-    def get(self, request, username_or_address):
+    def get(self, request, address):
         '''
-        Params: username_or_address (required - in path)
+        Params: address (required - in path)
         '''
 
-        owned_list = [
-            {
-                "token": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
-                "name": "Name",
-                "creator": "Creator",
-                "owner": "Owner",
-                "price": "Price",
-                "thumbnail_url": "",
-                "like_count": 232,
-                "sharable_link": ""
-            },
-            {
-                "token": "token2",
-                "name": "Name 2",
-                "creator": "Creator 2",
-                "owner": "Owner 2",
-                "price": "Price 2",
-                "thumbnail_url": "",
-                "like_count": 32,
-                "sharable_link": ""
-            },
-            {
-                "token": "token3",
-                "name": "Name 2",
-                "creator": "Creator 2",
-                "owner": "Owner 2",
-                "price": "Price 2",
-                "thumbnail_url": "",
-                "like_count": 32,
-                "sharable_link": ""
-            }
-        ]
+        if not address:
+            # Return early with error message
+            status_code = 400
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Required parameter missing: address"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
 
-        liked_list = [
-            {
-                "token": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
-                "name": "Name",
-                "creator": "Creator",
-                "owner": "Owner",
-                "price": "Price",
-                "thumbnail_url": "",
-                "like_count": 232,
-                "sharable_link": ""
-            },
-            {
-                "token": "token2",
-                "name": "Name 2",
-                "creator": "Creator 2",
-                "owner": "Owner 2",
-                "price": "Price 2",
-                "thumbnail_url": "",
-                "like_count": 32,
-                "sharable_link": ""
-            },
-            {
-                "token": "token3",
-                "name": "Name 2",
-                "creator": "Creator 2",
-                "owner": "Owner 2",
-                "price": "Price 2",
-                "thumbnail_url": "",
-                "like_count": 32,
-                "sharable_link": ""
+        # Check to see if it's a valid address format
+        # example: "0x0000000000001b84b1cb32787b0d64758d019317"
+
+        if not bool(re.match(r"0x([0-9a-z]{40})+$", address)):
+            # Return early with error message
+            status_code = 400
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "address not in expected format"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+
+
+        # Continue with query
+        url = "https://api.opensea.io/api/v1/assets"
+        querystring = {
+            "owner":address,
+            "order_direction":"desc",
+            "offset":"0",
+            "limit":"50" #Capped at 50
+        }
+        response = requests.request("GET", url, params=querystring)
+
+        if response.status_code!=200:
+            status_code = response.status_code
+            response_body = {
+                "error": {
+                    "code": status_code,
+                    "message": "Error from OpenSea API"
+                }
             }
-        ]
+            return JsonResponse(response_body, status=status_code)
+
+
         response_body = {
             "data": {
-                "display_name": username_or_address,
-                "owned": owned_list,
-                "liked": liked_list
+                "profile_address": address,
+                "tokens_owned": response.json().get('assets')
+            }
+        }
+        return JsonResponse(response_body)
+
+
+class ContractView(View):
+    '''
+    Lists the tokens created by a contract
+    '''
+
+    def get(self, request, address):
+        '''
+        Params: address (required - in path)
+        '''
+
+        if not address:
+            # Return early with error message
+            status_code = 400
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Required parameter missing: address"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+        # Check to see if it's a valid address format
+        # example: "0xfa2c6c8599026583dbc274484e5a088880c8de8e"
+
+        if not bool(re.match(r"0x([0-9a-z]{40})+$", address)):
+            # Return early with error message
+            status_code = 400
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "address not in expected format"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+
+
+        # Continue with query
+        url = "https://api.opensea.io/api/v1/assets"
+        querystring = {
+            "asset_contract_address":address,
+            "order_direction":"desc",
+            "offset":"0",
+            "limit":"50" #Capped at 50
+        }
+        response = requests.request("GET", url, params=querystring)
+
+        if response.status_code!=200:
+            status_code = response.status_code
+            response_body = {
+                "error": {
+                    "code": status_code,
+                    "message": "Error from OpenSea API"
+                }
+            }
+            return JsonResponse(response_body, status=status_code)
+
+
+        response_body = {
+            "data": {
+                "contract_address": address,
+                "tokens_created": response.json().get('assets')
             }
         }
         return JsonResponse(response_body)
