@@ -34,20 +34,9 @@ from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-#from gql import gql, Client
-#from gql.transport.requests import RequestsHTTPTransport
 import requests
-
-
-
-'''
-transport = RequestsHTTPTransport(
-    url='https://api.thegraph.com/subgraphs/name/wighawag/eip721-subgraph',
-    verify=True,
-    retries=3,
-)
-subgraph_client = Client(transport=transport)
-'''
+from .models import MagicUser, Contract, Token, LikeHistory
+from django.db.models import Sum
 
 def index(request):
     '''
@@ -119,110 +108,23 @@ class TokenView(View):
             }
             return JsonResponse(response_body, status=status_code)
 
+        opensea_json = response.json()
+
+        # Add the "showtime" data to the original response
+        like_count = list(LikeHistory.objects.filter(
+            token__token_identifier=token_id, 
+            token__contract__address=asset_contract_address
+        ).aggregate(Sum('value')).values())[0] or 0
+
+        opensea_json['showtime'] = {
+            "like_count": like_count
+        }
 
         #For now, just return full opensea API response
         response_body = {
-            "data": response.json()
+            "data": opensea_json
         }
         return JsonResponse(response_body)
-
-
-
-        # query = '''query {{
-
-        #         token(id: "{address}_{token_id}") {{
-        #             id
-        #             contract {{
-        #                 id
-        #             }}
-        #             tokenID
-        #             owner {{
-        #                 id
-        #             }}
-        #             tokenURI
-        #         }}
-        #     }}
-        # '''.format(address=address, token_id=token_id)
-
-        # token_data = subgraph_client.execute(gql(query))
-
-        # if not token_data['token']:
-        #     # Return early with error message
-        #     status_code = 404
-        #     response_body = {
-        #                 "error": {
-        #                     "code": status_code,
-        #                     "message": "Token not found"
-        #                 }
-        #             }
-        #     return JsonResponse(response_body, status=status_code)
-
-
-        # #print(token_data)
-
-        # # Check if missing token URI
-        # token_uri = token_data['token'].get('tokenURI')
-
-        # if not token_uri:
-        #     # Return early with error message
-        #     status_code = 402
-        #     response_body = {
-        #                 "error": {
-        #                     "code": status_code,
-        #                     "message": "Token does not contain URI"
-        #                 }
-        #             }
-        #     return JsonResponse(response_body, status=status_code)
-
-        # # Check if URI not json
-        # if len(token_uri)<22 or token_uri[:22] != "data:application/json,":
-        #     # Return early with error message
-        #     status_code = 402
-        #     response_body = {
-        #                 "error": {
-        #                     "code": status_code,
-        #                     "message": "Token URI does not contain json"
-        #                 }
-        #             }
-        #     return JsonResponse(response_body, status=status_code)
-
-
-        # token_uri_json = json.loads(token_uri.replace("data:application/json,",""))
-        # #print(token_uri_json)
-
-        # name = token_uri_json.get("name")
-        # if name:
-        #     name = urllib.parse.unquote(name)
-        # description = token_uri_json.get("description")
-        # if description:
-        #     description = urllib.parse.unquote(description)
-        # image = token_uri_json.get("image")
-
-        # owner_id = None
-        # owner = token_data['token'].get("owner")
-        # if owner:
-        #     owner_id = owner.get("id")
-
-        # contract_id = None
-        # contract = token_data['token'].get('contract')
-        # if contract:
-        #     contract_id = contract.get("id")
-
-        # response_body = {
-        #                 "data": {
-        #                     #"id": contract_token_id,
-        #                     "contract_id": contract_id,
-        #                     "token_id": token_data['token'].get('tokenID'),
-        #                     "owner_id": owner_id,
-        #                     "name": name,
-        #                     "description": description,
-        #                     "image": image,
-        #                     #"creator": "Creator",
-        #                     #"price": "Price",
-        #                 }
-        #             }
-        # return JsonResponse(response_body)
-
 
 
     def post(self, request, asset_contract_address, token_id):
@@ -231,12 +133,12 @@ class TokenView(View):
         1. address (required - in path)
         2. token_id (required - in path)
         3. action (required - in body) - values include "like" & "unlike"
-        4. user_id (required - in body)
+        4. user_email (required - in body)
         '''
 
         json_body = json.loads(request.body.decode())
         action = json_body.get('action')
-        user_id = json_body.get('user_id')
+        user_email = json_body.get('user_email')
 
         #action = request.POST.get("action") # this is the syntax for forms
 
@@ -276,13 +178,13 @@ class TokenView(View):
                     }
             return JsonResponse(response_body, status=status_code)
 
-        if not user_id:
+        if not user_email or user_email.strip()=="":
             # Return early with error message
             status_code = 400
             response_body = {
                         "error": {
                             "code": status_code,
-                            "message": "Required parameter missing: user_id"
+                            "message": "Required parameter missing: user_email"
                         }
                     }
             return JsonResponse(response_body, status=status_code)
@@ -312,6 +214,22 @@ class TokenView(View):
             return JsonResponse(response_body, status=status_code)
 
         # TBD: Process the Like/Unlike
+        magic_user = MagicUser.objects.get_or_create(email=user_email)[0]
+        contract = Contract.objects.get_or_create(address=asset_contract_address)[0]
+        token = Token.objects.get_or_create(contract=contract, token_identifier=token_id)[0]
+
+        value = 0
+        if action=="like":
+            value = 1
+        elif action=="unlike":
+            value = -1
+
+        # Skip duplicate submissions
+        recent_history = LikeHistory.objects.filter(magic_user=magic_user, token=token).order_by('-added').first()
+        if recent_history and recent_history.value == value:
+            pass
+        else:
+            LikeHistory.objects.create(magic_user=magic_user, token=token, value=value)
 
         # Return empty 200
         return HttpResponse("")
@@ -384,36 +302,47 @@ class FeaturedView(View):
         Params: none
         '''
 
-        items_list = [
-            {
-                "token": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
-                "name": "Name",
-                "creator": "Creator",
-                "owner": "Owner",
-                "price": "Price",
-                "thumbnail_url": "",
-                "like_count": 232
-            },
-            {
-                "token": "token2",
-                "name": "Name 2",
-                "creator": "Creator 2",
-                "owner": "Owner 2",
-                "price": "Price 2",
-                "thumbnail_url": "",
-                "like_count": 32
-            },
-            {
-                "token": "token2",
-                "name": "Name 2",
-                "creator": "Creator 2",
-                "owner": "Owner 2",
-                "price": "Price 2",
-                "thumbnail_url": "",
-                "like_count": 32
+
+        # Query
+        url = "https://api.opensea.io/api/v1/assets"
+        querystring = {
+            "order_direction":"asc",
+            "offset":"0",
+            "limit":"20" #Capped at 50
+        }
+        response = requests.request("GET", url, params=querystring)
+
+        if response.status_code!=200:
+            status_code = response.status_code
+            response_body = {
+                "error": {
+                    "code": status_code,
+                    "message": "Error from OpenSea API"
+                }
             }
-        ]
-        response_body = { "data": items_list }
+            return JsonResponse(response_body, status=status_code)
+
+
+        opensea_json = response.json().get('assets')
+
+        for asset in opensea_json:
+
+            # Add the "showtime" data to the original response
+            if asset.get('token_id') and asset.get('asset_contract') and asset['asset_contract'].get('address'):
+                like_count = list(LikeHistory.objects.filter(
+                    token__token_identifier=asset['token_id'], 
+                    token__contract__address=asset['asset_contract']['address']
+                ).aggregate(Sum('value')).values())[0] or 0
+            else:
+                like_count = 0
+
+            asset['showtime'] = {
+                "like_count": like_count
+            }
+
+        response_body = {
+            "data": opensea_json
+        }
         return JsonResponse(response_body)
 
 
@@ -427,49 +356,52 @@ class LeaderboardView(View):
         Params: none
         '''
 
-        leaderboard_list = [
-            {
-                "rank": 1,
-                "creator": {
-                    "name": "Beeple",
-                    "thumbnail_url": ""
-                },
-                "item": {
-                    "token": "0x752aa32a2cc49aed842874326379ea1f95b1cbe6",
-                    "name": "Name",
-                    "thumbnail_url": "",
-                    "like_count": 3521
-                }
-            },
-            {
-                "rank": 2,
-                "creator": {
-                    "name": "Fewocious",
-                    "thumbnail_url": ""
-                },
-                "item": {
-                    "token": "token2",
-                    "name": "Name",
-                    "thumbnail_url": "",
-                    "like_count": 2283
-                }
-            },
-            {
-                "rank": 3,
-                "creator": {
-                    "name": "3LAU",
-                    "thumbnail_url": ""
-                },
-                "item": {
-                    "token": "token3",
-                    "name": "Name",
-                    "thumbnail_url": "",
-                    "like_count": 1902
+
+        # Query
+        url = "https://api.opensea.io/api/v1/assets"
+        querystring = {
+            "order_direction":"desc",
+            "offset":"0",
+            "limit":"20" #Capped at 50
+        }
+        response = requests.request("GET", url, params=querystring)
+
+        if response.status_code!=200:
+            status_code = response.status_code
+            response_body = {
+                "error": {
+                    "code": status_code,
+                    "message": "Error from OpenSea API"
                 }
             }
-        ]
-        response_body = { "data": leaderboard_list }
+            return JsonResponse(response_body, status=status_code)
+
+
+        opensea_json = response.json().get('assets')
+
+        for asset in opensea_json:
+
+            # Add the "showtime" data to the original response
+            if asset.get('token_id') and asset.get('asset_contract') and asset['asset_contract'].get('address'):
+                like_count = list(LikeHistory.objects.filter(
+                    token__token_identifier=asset['token_id'], 
+                    token__contract__address=asset['asset_contract']['address']
+                ).aggregate(Sum('value')).values())[0] or 0
+            else:
+                like_count = 0
+
+            asset['showtime'] = {
+                "like_count": like_count
+            }
+
+        response_body = {
+            "data": opensea_json
+        }
         return JsonResponse(response_body)
+
+
+
+
 
 
 class ProfileView(View):
@@ -515,7 +447,7 @@ class ProfileView(View):
             "owner":address,
             "order_direction":"desc",
             "offset":"0",
-            "limit":"50" #Capped at 50
+            "limit":"20" #Capped at 50
         }
         response = requests.request("GET", url, params=querystring)
 
@@ -530,10 +462,27 @@ class ProfileView(View):
             return JsonResponse(response_body, status=status_code)
 
 
+        opensea_json = response.json().get('assets')
+
+        for asset in opensea_json:
+
+            # Add the "showtime" data to the original response
+            if asset.get('token_id') and asset.get('asset_contract') and asset['asset_contract'].get('address'):
+                like_count = list(LikeHistory.objects.filter(
+                    token__token_identifier=asset['token_id'], 
+                    token__contract__address=asset['asset_contract']['address']
+                ).aggregate(Sum('value')).values())[0] or 0
+            else:
+                like_count = 0
+
+            asset['showtime'] = {
+                "like_count": like_count
+            }
+
         response_body = {
             "data": {
                 "profile_address": address,
-                "tokens_owned": response.json().get('assets')
+                "tokens_owned": opensea_json
             }
         }
         return JsonResponse(response_body)
@@ -582,7 +531,7 @@ class ContractView(View):
             "asset_contract_address":address,
             "order_direction":"desc",
             "offset":"0",
-            "limit":"50" #Capped at 50
+            "limit":"20" #Capped at 50
         }
         response = requests.request("GET", url, params=querystring)
 
@@ -596,11 +545,28 @@ class ContractView(View):
             }
             return JsonResponse(response_body, status=status_code)
 
+        opensea_json = response.json().get('assets')
+
+        for asset in opensea_json:
+
+            # Add the "showtime" data to the original response
+            if asset.get('token_id') and asset.get('asset_contract') and asset['asset_contract'].get('address'):
+                like_count = list(LikeHistory.objects.filter(
+                    token__token_identifier=asset['token_id'], 
+                    token__contract__address=asset['asset_contract']['address']
+                ).aggregate(Sum('value')).values())[0] or 0
+            else:
+                like_count = 0
+
+            asset['showtime'] = {
+                "like_count": like_count
+            }
+
 
         response_body = {
             "data": {
                 "contract_address": address,
-                "tokens_created": response.json().get('assets')
+                "tokens_created": opensea_json
             }
         }
         return JsonResponse(response_body)

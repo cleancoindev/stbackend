@@ -8,9 +8,9 @@ django-rest-framework==0.1.0
 djangorestframework==3.12.1
 pytz==2020.1
 brotli==1.0.9
-gql==2.0.0
 
 
+#gql==2.0.0
 #sendgrid==6.4.7
 #djangorestframework-simplejwt==4.6.0
 #pyjwt==1.7.1

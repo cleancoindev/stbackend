@@ -8,7 +8,7 @@ This Django app serves up crypto goodness to the React frontend. The production 
 
 GET: `/api/v1/token/0x0000000000001b84b1cb32787b0d64758d019317/3259539015542658014133428223780909702996875844353040978646893663363117613056`
 
-POST: `/api/v1/token/0x0000000000001b84b1cb32787b0d64758d019317/3259539015542658014133428223780909702996875844353040978646893663363117613056` // json body: { "action": "like", "user_id": "1234567" }
+POST: `/api/v1/token/0x0000000000001b84b1cb32787b0d64758d019317/3259539015542658014133428223780909702996875844353040978646893663363117613056` // json body: { "action": "like", "user_email": "test@gmail.com" }
 
 **Search**
 
@@ -23,6 +23,11 @@ GET: `/api/v1/leaderboard`
 **Profile**
 
 GET: `/api/v1/profile/0xd3e9d60e4e4de615124d5239219f32946d10151d`
+
+**Contract**
+
+GET: `/api/v1/contract/0xd1e5b0ff1287aa9f9a268759062e4ab08b9dacbe`
+
 
 ## Running locally
 

@@ -16,6 +16,9 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 from pathlib import Path
 import os
 
+# Your IP address will have to be whitelisted before you can access the production database
+USE_PRODUCTION_DB_LOCALLY = False
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -91,12 +94,26 @@ if os.getenv('GAE_APPLICATION', None):
     }
 else:
     DEBUG = True
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+    if USE_PRODUCTION_DB_LOCALLY:
+        # Your IP address will have to be whitelisted before you can access the production database
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.mysql',
+                'HOST': '34.94.187.228',
+                'PORT': '3306',
+                'NAME': 'database1',
+                'USER': 'webapp',
+                'PASSWORD': '9wLAHT1be26w',
+                'OPTIONS': {'charset': 'utf8mb4'},
+            }
         }
-    }
+    else:
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
 
 
 
