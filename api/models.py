@@ -5,6 +5,11 @@ from django.db.models.deletion import CASCADE
 class MagicUser(models.Model):
     email = models.CharField(max_length=255, unique=True)
 
+class Profile(models.Model):
+    address = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=200, null=True, blank=True)
+    twitter = models.CharField(max_length=100, null=True, blank=True)
+
 class Contract(models.Model):
     address = models.CharField(max_length=100, unique=True)
 

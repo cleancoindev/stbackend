@@ -30,13 +30,14 @@ Unsuccessful requests will return an "error" object:
 import json
 import urllib.parse
 import re
+import requests
 from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-import requests
-from .models import MagicUser, Contract, Token, LikeHistory
 from django.db.models import Sum
+from .models import MagicUser, Contract, Token, LikeHistory, Profile
+
 
 def index(request):
     '''
@@ -112,7 +113,7 @@ class TokenView(View):
 
         # Add the "showtime" data to the original response
         like_count = list(LikeHistory.objects.filter(
-            token__token_identifier=token_id, 
+            token__token_identifier=token_id,
             token__contract__address=asset_contract_address
         ).aggregate(Sum('value')).values())[0] or 0
 
@@ -139,8 +140,6 @@ class TokenView(View):
         json_body = json.loads(request.body.decode())
         action = json_body.get('action')
         user_email = json_body.get('user_email')
-
-        #action = request.POST.get("action") # this is the syntax for forms
 
         if not asset_contract_address:
             # Return early with error message
@@ -330,7 +329,7 @@ class FeaturedView(View):
             # Add the "showtime" data to the original response
             if asset.get('token_id') and asset.get('asset_contract') and asset['asset_contract'].get('address'):
                 like_count = list(LikeHistory.objects.filter(
-                    token__token_identifier=asset['token_id'], 
+                    token__token_identifier=asset['token_id'],
                     token__contract__address=asset['asset_contract']['address']
                 ).aggregate(Sum('value')).values())[0] or 0
             else:
@@ -384,7 +383,7 @@ class LeaderboardView(View):
             # Add the "showtime" data to the original response
             if asset.get('token_id') and asset.get('asset_contract') and asset['asset_contract'].get('address'):
                 like_count = list(LikeHistory.objects.filter(
-                    token__token_identifier=asset['token_id'], 
+                    token__token_identifier=asset['token_id'],
                     token__contract__address=asset['asset_contract']['address']
                 ).aggregate(Sum('value')).values())[0] or 0
             else:
@@ -469,7 +468,7 @@ class ProfileView(View):
             # Add the "showtime" data to the original response
             if asset.get('token_id') and asset.get('asset_contract') and asset['asset_contract'].get('address'):
                 like_count = list(LikeHistory.objects.filter(
-                    token__token_identifier=asset['token_id'], 
+                    token__token_identifier=asset['token_id'],
                     token__contract__address=asset['asset_contract']['address']
                 ).aggregate(Sum('value')).values())[0] or 0
             else:
@@ -552,7 +551,7 @@ class ContractView(View):
             # Add the "showtime" data to the original response
             if asset.get('token_id') and asset.get('asset_contract') and asset['asset_contract'].get('address'):
                 like_count = list(LikeHistory.objects.filter(
-                    token__token_identifier=asset['token_id'], 
+                    token__token_identifier=asset['token_id'],
                     token__contract__address=asset['asset_contract']['address']
                 ).aggregate(Sum('value')).values())[0] or 0
             else:
@@ -570,3 +569,63 @@ class ContractView(View):
             }
         }
         return JsonResponse(response_body)
+
+@method_decorator(csrf_exempt, name='dispatch')
+class UserAddView(View):
+    '''
+    Endpoint for scraper to add user data
+    '''
+
+    def post(self, request):
+        '''
+        Params:
+        1. address (required - in json body)
+        2. name (optional - in json body)
+        3. twitter (optional - in json body)
+        '''
+
+        json_body = json.loads(request.body.decode())
+        address = json_body.get('address')
+        if address and address.strip()=="":
+            address = None
+
+        name = json_body.get('name')
+        if name and name.strip()=="":
+            name = None
+
+        twitter = json_body.get('twitter')
+        if twitter and twitter.strip()=="":
+            twitter = None
+
+        if not address:
+            # Return early with error message
+            status_code = 400
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Required parameter missing: address"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+        # Check to see if it's a valid address format
+        # example: "0x0000000000001b84b1cb32787b0d64758d019317"
+
+        if not bool(re.match(r"0x([0-9a-z]{40})+$", address)):
+            # Return early with error message
+            status_code = 400
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "address not in expected format"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+        profile = Profile.objects.get_or_create(address=address)[0]
+        profile.name = name
+        profile.twitter = twitter
+        profile.save()
+
+        # Return empty 200
+        return HttpResponse("")

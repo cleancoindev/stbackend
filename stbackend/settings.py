@@ -45,6 +45,8 @@ else:
     from google.cloud import secretmanager
 
     def access_secret_version(secret_id, version_id="latest"):
+        '''Get the latest values from the secret manager'''
+
         # Create the Secret Manager client.
         client = secretmanager.SecretManagerServiceClient()
 

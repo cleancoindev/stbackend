@@ -18,6 +18,8 @@ urlpatterns = [
     url(r'^v1/leaderboard$', views.LeaderboardView.as_view(), name='leaderboard'),
     url(r'^v1/featured$', views.FeaturedView.as_view(), name='featured'),
 
+    url(r'^v1/bot-only/user-add$', views.UserAddView.as_view(), name='user_add'),
+
     #TBD: url(r'^v1/search$', views.SearchView.as_view(), name='search'),
 ]
 
