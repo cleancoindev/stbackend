@@ -8,7 +8,8 @@ django-rest-framework==0.1.0
 djangorestframework==3.12.1
 pytz==2020.1
 brotli==1.0.9
-
+google_cloud_secret_manager==2.1.0
+django_environ==0.4.5
 
 #gql==2.0.0
 #sendgrid==6.4.7

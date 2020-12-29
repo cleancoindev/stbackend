@@ -16,8 +16,52 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 from pathlib import Path
 import os
 
-# Your IP address will have to be whitelisted before you can access the production database
+# Heads up: Even with credentials, your IP address will have to be whitelisted
+# before you can access the production database
 USE_PRODUCTION_DB_LOCALLY = False
+
+# Import secrets
+if not os.getenv('GAE_APPLICATION', None):
+    # Running locally
+
+    if not USE_PRODUCTION_DB_LOCALLY:
+        # Save you some setup - using throwaway secret_key
+        SECRET_KEY = "0s3U695E3QzQ79OLttfUQClr"
+    else:
+        # Using prod DB - need to import secrets from stbackend/.env file
+        # See stbackend/.env.example for how to set up your .env
+        import environ
+        env = environ.Env()
+        environ.Env.read_env()
+
+        SECRET_KEY = env('SECRET_KEY')
+        DB_HOST = env('DB_HOST')
+        DB_NAME = env('DB_NAME')
+        DB_USER = env('DB_USER')
+        DB_PASSWORD = env('DB_PASSWORD')
+else:
+    # Running in App Engine
+    # Get secrets from secret manager in Google App Engine
+    from google.cloud import secretmanager
+
+    def access_secret_version(secret_id, version_id="latest"):
+        # Create the Secret Manager client.
+        client = secretmanager.SecretManagerServiceClient()
+
+        # Build the resource name of the secret version.
+        name = f"projects/showtimenft/secrets/{secret_id}/versions/{version_id}"
+
+        # Access the secret version.
+        response = client.access_secret_version(name=name)
+
+        # Return the decoded payload.
+        return response.payload.data.decode('UTF-8')
+
+    SECRET_KEY = access_secret_version("SECRET_KEY")
+    DB_HOST = access_secret_version('DB_HOST')
+    DB_NAME = access_secret_version('DB_NAME')
+    DB_USER = access_secret_version('DB_USER')
+    DB_PASSWORD = access_secret_version('DB_PASSWORD')
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -27,8 +71,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'lv&emqkk2jt(=de_mfbf1)i4diy5bvj1+rj27=u$1m(!mz6o$%'
+
 
 ALLOWED_HOSTS = ['localhost','127.0.0.1', 'showtimenft.wl.r.appspot.com']
 
@@ -85,25 +128,26 @@ if os.getenv('GAE_APPLICATION', None):
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.mysql',
-            'HOST': '/cloudsql/showtimenft:us-west2:instance1',
-            'NAME': 'database1',
-            'USER': 'webapp',
-            'PASSWORD': '9wLAHT1be26w',
+            'HOST': DB_HOST,
+            'NAME': DB_NAME,
+            'USER': DB_USER,
+            'PASSWORD': DB_PASSWORD,
             'OPTIONS': {'charset': 'utf8mb4'},
         }
     }
 else:
     DEBUG = True
     if USE_PRODUCTION_DB_LOCALLY:
+
         # Your IP address will have to be whitelisted before you can access the production database
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.mysql',
-                'HOST': '34.94.187.228',
+                'HOST': DB_HOST,
                 'PORT': '3306',
-                'NAME': 'database1',
-                'USER': 'webapp',
-                'PASSWORD': '9wLAHT1be26w',
+                'NAME': DB_NAME,
+                'USER': DB_USER,
+                'PASSWORD': DB_PASSWORD,
                 'OPTIONS': {'charset': 'utf8mb4'},
             }
         }
