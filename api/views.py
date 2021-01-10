@@ -31,6 +31,8 @@ import json
 import urllib.parse
 import re
 import requests
+import datetime
+from django.utils import timezone
 from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
@@ -44,7 +46,7 @@ from magic_admin.utils.http import parse_authorization_header_value
 #from magic_admin.error import DIDTokenError
 #from magic_admin.error import RequestError
 
-from .models import Contract, Token, LikeHistory, Profile
+from .models import Contract, Token, LikeHistory, Profile, Wallet
 
 
 def index(request):
@@ -91,17 +93,27 @@ def mylikes(request):
                 }
         return JsonResponse(response_body, status=status_code)
 
+
+    wallet = Wallet.objects.get_or_create(address=public_address)[0]
+    if not wallet.profile:
+        wallet.profile = Profile.objects.create()
+    wallet.last_authenticated = datetime.datetime.now(tz=timezone.utc)
+    wallet.save()
+
+
     with connection.cursor() as cursor:
         cursor.execute("""
         select c.address, token_identifier, SUM(value) as likes
         from api_profile p
+        join api_wallet w
+        on w.profile_id = p.id
         join api_likehistory h
         on p.id = h.profile_id
         join api_token t
         on t.id = h.token_id
         join api_contract c
         on c.id = t.contract_id
-        where p.address = %s
+        where w.address = %s
         group by c.address, token_identifier
         having likes > 0
         """, (public_address, ))
@@ -242,6 +254,10 @@ class TokenView(View):
 
         json_body = json.loads(request.body.decode())
         action = json_body.get('action')
+        creator_address = json_body.get('creator_address')
+        creator_name = json_body.get('creator_name')
+        creator_img_url = json_body.get('creator_img_url')
+        
 
         if not asset_contract_address:
             # Return early with error message
@@ -304,22 +320,57 @@ class TokenView(View):
             return JsonResponse(response_body, status=status_code)
 
         # TBD: Process the Like/Unlike
-        profile = Profile.objects.get_or_create(address=public_address)[0]
+        wallet = Wallet.objects.get_or_create(address=public_address)[0]
+        if not wallet.profile:
+            wallet.profile = Profile.objects.create()
+        wallet.last_authenticated = datetime.datetime.now(tz=timezone.utc)
+        wallet.save()
+
         contract = Contract.objects.get_or_create(address=asset_contract_address)[0]
         token = Token.objects.get_or_create(contract=contract, token_identifier=token_id)[0]
 
         value = 0
         if action=="like":
             value = 1
+            if token.creator is None:
+
+                # Attempt to add creator wallet/profile/metadata for leaderboard scoring
+                if creator_address:
+                    # Get/generate the wallet
+                    creator_wallet = Wallet.objects.get_or_create(address=creator_address)[0]
+                    if not creator_wallet.profile:
+                        # Create new a profile if needed
+                        creator_wallet.profile = Profile.objects.create(name=creator_name, img_url=creator_img_url)
+                        creator_wallet.save()
+                    else:
+                        # See if we can augment an existing profile
+                        creator_profile = creator_wallet.profile
+                        need_to_update = False
+                        if creator_profile.name is None and creator_name:
+                            creator_profile.name = creator_name
+                            need_to_update = True
+                        if creator_profile.img_url is None and creator_img_url:
+                            creator_profile.img_url = creator_img_url
+                            need_to_update = True
+                        if need_to_update:
+                            creator_profile.save()
+
+                    token.creator = creator_wallet
+                    token.save()
+
+
         elif action=="unlike":
             value = -1
 
+
+
         # Skip duplicate submissions
-        recent_history = LikeHistory.objects.filter(profile=profile, token=token).order_by('-added').first()
+        recent_history = LikeHistory.objects.filter(profile=wallet.profile, token=token).order_by('-added').first()
         if recent_history and recent_history.value == value:
             pass
         else:
-            LikeHistory.objects.create(profile=profile, token=token, value=value)
+            LikeHistory.objects.create(profile=wallet.profile, token=token, value=value)
+
 
         # Return empty 200
         return HttpResponse("")
