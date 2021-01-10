@@ -36,7 +36,15 @@ from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db.models import Sum
-from .models import MagicUser, Contract, Token, LikeHistory, Profile
+from django.db import connection
+
+from magic_admin import Magic
+# A util provided by `magic_admin` to parse the auth header value.
+from magic_admin.utils.http import parse_authorization_header_value
+#from magic_admin.error import DIDTokenError
+#from magic_admin.error import RequestError
+
+from .models import Contract, Token, LikeHistory, Profile
 
 
 def index(request):
@@ -44,6 +52,71 @@ def index(request):
     Index page on the API
     '''
     return HttpResponse("Index")
+
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+def mylikes(request):
+    '''
+    Get list of my likes
+    '''
+    try:
+        did_token = parse_authorization_header_value(
+            request.headers.get('Authorization'),
+        ).replace("%3D","=")
+    except:
+        status_code = 401
+        response_body = {
+                    "error": {
+                        "code": status_code,
+                        "message": "Missing authentication token"
+                    }
+                }
+        return JsonResponse(response_body, status=status_code)
+
+    magic = Magic(api_secret_key='pk_test_7FF6C3036AF5DE22')
+
+    # Validate the did_token.
+    try:
+        magic.Token.validate(did_token)
+        public_address = magic.Token.get_public_address(did_token)
+    except:
+        # Return early with error message
+        status_code = 401
+        response_body = {
+                    "error": {
+                        "code": status_code,
+                        "message": "Invalid or expired authentication token"
+                    }
+                }
+        return JsonResponse(response_body, status=status_code)
+
+    with connection.cursor() as cursor:
+        cursor.execute("""
+        select c.address, token_identifier, SUM(value) as likes
+        from api_profile p
+        join api_likehistory h
+        on p.id = h.profile_id
+        join api_token t
+        on t.id = h.token_id
+        join api_contract c
+        on c.id = t.contract_id
+        where p.address = %s
+        group by c.address, token_identifier
+        having likes > 0
+        """, (public_address, ))
+        rows = cursor.fetchall()
+        like_list = []
+        for row in rows:
+            like_list.append({
+                "contract": row[0],
+                "token_id": row[1]
+            })
+
+    response_body = {
+            "data": like_list
+        }
+    return JsonResponse(response_body)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -134,12 +207,41 @@ class TokenView(View):
         1. address (required - in path)
         2. token_id (required - in path)
         3. action (required - in body) - values include "like" & "unlike"
-        4. user_email (required - in body)
         '''
+
+        try:
+            did_token = parse_authorization_header_value(
+                request.headers.get('Authorization'),
+            ).replace("%3D","=")
+        except:
+            status_code = 401
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Missing authentication token"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+        magic = Magic(api_secret_key='pk_test_7FF6C3036AF5DE22')
+
+        # Validate the did_token.
+        try:
+            magic.Token.validate(did_token)
+            public_address = magic.Token.get_public_address(did_token)
+        except:
+            # Return early with error message
+            status_code = 401
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Invalid or expired authentication token"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
 
         json_body = json.loads(request.body.decode())
         action = json_body.get('action')
-        user_email = json_body.get('user_email')
 
         if not asset_contract_address:
             # Return early with error message
@@ -177,17 +279,6 @@ class TokenView(View):
                     }
             return JsonResponse(response_body, status=status_code)
 
-        if not user_email or user_email.strip()=="":
-            # Return early with error message
-            status_code = 400
-            response_body = {
-                        "error": {
-                            "code": status_code,
-                            "message": "Required parameter missing: user_email"
-                        }
-                    }
-            return JsonResponse(response_body, status=status_code)
-
         # TBD: Check to make sure it's a valid user. Return error if not.
 
         if not action:
@@ -213,7 +304,7 @@ class TokenView(View):
             return JsonResponse(response_body, status=status_code)
 
         # TBD: Process the Like/Unlike
-        magic_user = MagicUser.objects.get_or_create(email=user_email)[0]
+        profile = Profile.objects.get_or_create(address=public_address)[0]
         contract = Contract.objects.get_or_create(address=asset_contract_address)[0]
         token = Token.objects.get_or_create(contract=contract, token_identifier=token_id)[0]
 
@@ -224,11 +315,11 @@ class TokenView(View):
             value = -1
 
         # Skip duplicate submissions
-        recent_history = LikeHistory.objects.filter(magic_user=magic_user, token=token).order_by('-added').first()
+        recent_history = LikeHistory.objects.filter(profile=profile, token=token).order_by('-added').first()
         if recent_history and recent_history.value == value:
             pass
         else:
-            LikeHistory.objects.create(magic_user=magic_user, token=token, value=value)
+            LikeHistory.objects.create(profile=profile, token=token, value=value)
 
         # Return empty 200
         return HttpResponse("")

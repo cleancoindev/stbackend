@@ -9,6 +9,9 @@ app_name = 'api'
 
 urlpatterns = [
     url(r'^$', views.index, name='index'),
+    url(r'^v1/mylikes$', views.mylikes, name='mylikes'),
+
+
     url(r'^v1/token/(?P<asset_contract_address>[0-9a-z]+)/(?P<token_id>[0-9]+)$', \
         views.TokenView.as_view(), name='token'),
     url(r'^v1/profile/(?P<address>[0-9a-zA-Z]+)$', \
