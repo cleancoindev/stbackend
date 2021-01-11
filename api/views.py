@@ -455,13 +455,43 @@ class FeaturedView(View):
         Params: none
         '''
 
+        with connection.cursor() as cursor:
+            cursor.execute("""
+            select c.address, token_identifier, SUM(value) as likes
+            from api_profile p
+            join api_wallet w
+            on w.profile_id = p.id
+            join api_likehistory h
+            on p.id = h.profile_id
+            join api_token t
+            on t.id = h.token_id
+            join api_contract c
+            on c.id = t.contract_id
+            group by c.address, token_identifier
+            having likes > 0 
+            order by likes desc
+            limit 8
+            
+            """)
+            rows = cursor.fetchall()
+            
+            contract_list = []
+            token_list = []
 
+            for row in rows:
+                contract_list.append(row[0])
+                token_list.append(row[1])
+
+        # TBD - create the token list query
         # Query
         url = "https://api.opensea.io/api/v1/assets"
         querystring = {
-            "order_direction":"asc",
+            "order_direction":"desc",
             "offset":"0",
-            "limit":"20" #Capped at 50
+            "order_by": "sale_price",
+            "token_ids": token_list,
+            "asset_contract_addresses": contract_list,
+            "limit":"50" #Capped at 50
         }
         response = requests.request("GET", url, params=querystring)
 
@@ -478,6 +508,7 @@ class FeaturedView(View):
 
         opensea_json = response.json().get('assets')
 
+        
         for asset in opensea_json:
 
             # Add the "showtime" data to the original response
@@ -494,7 +525,7 @@ class FeaturedView(View):
             }
 
         response_body = {
-            "data": opensea_json
+            "data": sorted(opensea_json, key = lambda i: i['showtime']['like_count'], reverse=True)
         }
         return JsonResponse(response_body)
 
@@ -735,6 +766,110 @@ class LikedView(View):
 
 
 
+class CollectionListView(View):
+    '''
+    Lists the Collection items on the homepage
+    '''
+
+    def get(self, request):
+        '''
+        Params: none
+        '''
+
+
+        response_body = {
+            "data": [
+                
+                {
+                    "name": "SuperRare",
+                    "value": "superrare"
+                },
+                {
+                    "name": "Rarible",
+                    "value": "rarible"
+                },
+                {
+                    "name": "MakersPlace",
+                    "value": "makersplace"
+                },
+                {
+                    "name": "Known Origin",
+                    "value": "known-origin"
+                }
+            ]
+        }
+        return JsonResponse(response_body)
+
+
+
+
+class CollectionView(View):
+    '''
+    Lists the Collection items on the homepage
+    '''
+
+    def get(self, request):
+        '''
+        Params: collection (required)
+        '''
+
+        collection = request.GET.get('collection')
+
+
+        if not collection or not bool(re.match(r"([a-z\-])+$", collection)):
+            # set default
+            collection = "superrare"
+
+
+        # TBD - create the token list query
+        # Query
+        url = "https://api.opensea.io/api/v1/assets"
+        querystring = {
+            "order_direction":"desc",
+            "offset":"0",
+            "order_by": "sale_price",
+            "collection": collection,
+            "limit":"20" #Capped at 50
+        }
+        response = requests.request("GET", url, params=querystring)
+
+        if response.status_code!=200:
+            status_code = response.status_code
+            response_body = {
+                "error": {
+                    "code": status_code,
+                    "message": "Error from OpenSea API"
+                }
+            }
+            return JsonResponse(response_body, status=status_code)
+
+
+        opensea_json = response.json().get('assets')
+
+        
+        for asset in opensea_json:
+
+            # Add the "showtime" data to the original response
+            if asset.get('token_id') and asset.get('asset_contract') and asset['asset_contract'].get('address'):
+                like_count = list(LikeHistory.objects.filter(
+                    token__token_identifier=asset['token_id'],
+                    token__contract__address=asset['asset_contract']['address']
+                ).aggregate(Sum('value')).values())[0] or 0
+            else:
+                like_count = 0
+
+            asset['showtime'] = {
+                "like_count": like_count
+            }
+
+        response_body = {
+            "data": sorted(opensea_json, key = lambda i: i['showtime']['like_count'], reverse=True)
+        }
+        return JsonResponse(response_body)
+
+
+
+
 class LeaderboardView(View):
     '''
     Lists the top creators and art on the homepage
@@ -754,7 +889,9 @@ class LeaderboardView(View):
             join api_wallet w on w.id = t.creator_id
             join api_profile p on p.id = w.profile_id
             group by p.id, p.name, p.img_url
+            having likes > 0 
             order by likes desc, name desc, last_like desc
+            
             limit 10
             """)
             rows = cursor.fetchall()
