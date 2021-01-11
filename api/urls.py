@@ -10,12 +10,14 @@ app_name = 'api'
 urlpatterns = [
     url(r'^$', views.index, name='index'),
     url(r'^v1/mylikes$', views.mylikes, name='mylikes'),
-
+    url(r'^v1/profile$', views.ProfileView.as_view(), name='profile'),
+    url(r'^v1/owned$', views.OwnedView.as_view(), name='owned'),
+    url(r'^v1/liked$', views.LikedView.as_view(), name='liked'),
+    
 
     url(r'^v1/token/(?P<asset_contract_address>[0-9a-z]+)/(?P<token_id>[0-9]+)$', \
         views.TokenView.as_view(), name='token'),
-    url(r'^v1/profile/(?P<address>[0-9a-zA-Z]+)$', \
-        views.ProfileView.as_view(), name='profile'),
+    
     url(r'^v1/contract/(?P<address>[0-9a-zA-Z]+)$', \
         views.ContractView.as_view(), name='contract'),
     url(r'^v1/leaderboard$', views.LeaderboardView.as_view(), name='leaderboard'),
