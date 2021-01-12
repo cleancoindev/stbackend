@@ -10,12 +10,12 @@ app_name = 'api'
 urlpatterns = [
     url(r'^$', views.index, name='index'),
     url(r'^v1/mylikes$', views.mylikes, name='mylikes'),
-    url(r'^v1/profile$', views.ProfileView.as_view(), name='profile'),
+    #url(r'^v1/profile$', views.ProfileView.as_view(), name='profile'),
     url(r'^v1/owned$', views.OwnedView.as_view(), name='owned'),
     url(r'^v1/liked$', views.LikedView.as_view(), name='liked'),
     url(r'^v1/collection$', views.CollectionView.as_view(), name='collection'),
     url(r'^v1/collection_list$', views.CollectionListView.as_view(), name='collection_list'),
-    
+
 
     
 

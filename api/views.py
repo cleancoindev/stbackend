@@ -455,6 +455,13 @@ class FeaturedView(View):
         Params: none
         '''
 
+        
+        limit = 50
+        max_item_count = request.GET.get('maxItemCount')
+        if max_item_count and max_item_count.isdigit() and int(max_item_count)<=50:
+            limit = int(max_item_count)
+
+
         with connection.cursor() as cursor:
             cursor.execute("""
             select c.address, token_identifier, SUM(value) as likes
@@ -470,9 +477,9 @@ class FeaturedView(View):
             group by c.address, token_identifier
             having likes > 0 
             order by likes desc
-            limit 8
+            limit %s
             
-            """)
+            """, (limit,))
             rows = cursor.fetchall()
             
             contract_list = []
@@ -491,7 +498,7 @@ class FeaturedView(View):
             "order_by": "sale_price",
             "token_ids": token_list,
             "asset_contract_addresses": contract_list,
-            "limit":"50" #Capped at 50
+            "limit":limit #Capped at 50
         }
         response = requests.request("GET", url, params=querystring)
 
@@ -538,10 +545,16 @@ class OwnedView(View):
 
     def get(self, request):
         '''
-        Params: address (optional)
+        Params: address (optional), maxItemCount (optional)
         '''
 
         address = request.GET.get('address')
+
+        limit = 50
+        max_item_count = request.GET.get('maxItemCount')
+        if max_item_count and max_item_count.isdigit() and int(max_item_count)<=50:
+            limit = int(max_item_count)
+
 
         if not address or not bool(re.match(r"0x([0-9a-z]{40})+$", address)):
             try:
@@ -594,7 +607,7 @@ class OwnedView(View):
                 "offset":"0",
                 "order_by": "sale_price",
                 "owner": owner,
-                "limit":"50" #Capped at 50
+                "limit":limit #Capped at 50
             }
             response = requests.request("GET", url, params=querystring)
 
@@ -643,10 +656,16 @@ class LikedView(View):
 
     def get(self, request):
         '''
-        Params: address (optional)
+        Params: address (optional), maxItemCount
         '''
 
         address = request.GET.get('address')
+
+        limit = 50
+        max_item_count = request.GET.get('maxItemCount')
+        if max_item_count and max_item_count.isdigit() and int(max_item_count)<=50:
+            limit = int(max_item_count)
+
 
         if not address or not bool(re.match(r"0x([0-9a-z]{40})+$", address)):
             try:
@@ -695,7 +714,7 @@ class LikedView(View):
 
         with connection.cursor() as cursor:
             cursor.execute("""
-            select c.address, token_identifier, SUM(value) as likes
+            select c.address, token_identifier, SUM(value) as likes, max(added)
             from api_profile p
             join api_wallet w
             on w.profile_id = p.id
@@ -708,7 +727,9 @@ class LikedView(View):
             where w.address = %s
             group by c.address, token_identifier
             having likes > 0
-            """, (address, ))
+            order by max(added) desc
+            limit %s
+            """, (address, limit, ))
             rows = cursor.fetchall()
             
             contract_list = []
@@ -727,7 +748,7 @@ class LikedView(View):
             "order_by": "sale_price",
             "token_ids": token_list,
             "asset_contract_addresses": contract_list,
-            "limit":"50" #Capped at 50
+            "limit":limit #Capped at 50
         }
         response = requests.request("GET", url, params=querystring)
 
@@ -810,10 +831,15 @@ class CollectionView(View):
 
     def get(self, request):
         '''
-        Params: collection (required)
+        Params: collection (required), maxItemCount
         '''
 
         collection = request.GET.get('collection')
+
+        limit = 50
+        max_item_count = request.GET.get('maxItemCount')
+        if max_item_count and max_item_count.isdigit() and int(max_item_count)<=50:
+            limit = int(max_item_count)
 
 
         if not collection or not bool(re.match(r"([a-z\-])+$", collection)):
@@ -829,7 +855,7 @@ class CollectionView(View):
             "offset":"0",
             "order_by": "sale_price",
             "collection": collection,
-            "limit":"20" #Capped at 50
+            "limit":limit #Capped at 50
         }
         response = requests.request("GET", url, params=querystring)
 
