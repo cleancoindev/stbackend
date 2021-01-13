@@ -39,6 +39,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db.models import Sum
 from django.db import connection
+from django.core.cache import cache
 
 from magic_admin import Magic
 # A util provided by `magic_admin` to parse the auth header value.
@@ -61,6 +62,12 @@ def index(request):
 def mylikes(request):
     '''
     Get list of my likes
+    '''
+
+    '''
+    Params: address (required)
+    '''
+
     '''
     try:
         did_token = parse_authorization_header_value(
@@ -92,7 +99,40 @@ def mylikes(request):
                     }
                 }
         return JsonResponse(response_body, status=status_code)
+    
+    '''
 
+    public_address = request.GET.get('address')
+
+    if not public_address:
+        # Return early with error message
+        status_code = 400
+        response_body = {
+                    "error": {
+                        "code": status_code,
+                        "message": "Required parameter missing: address"
+                    }
+                }
+        return JsonResponse(response_body, status=status_code)
+
+    if not bool(re.match(r"0x([0-9a-zA-Z]{40})+$", public_address)):
+        # Return early with error message
+        status_code = 400
+        response_body = {
+                    "error": {
+                        "code": status_code,
+                        "message": "address not in expected format"
+                    }
+                }
+        return JsonResponse(response_body, status=status_code)
+
+
+
+    response_body = cache.get(str(public_address)+"_likes")
+
+    if response_body:
+        print("Used mylike cache")
+        return JsonResponse(response_body)
 
     wallet = Wallet.objects.get_or_create(address=public_address)[0]
     if not wallet.profile:
@@ -103,7 +143,7 @@ def mylikes(request):
 
     with connection.cursor() as cursor:
         cursor.execute("""
-        select c.address, token_identifier, SUM(value) as likes
+        select c.address, token_identifier, SUM(value) as likes, max(added) as timestamp
         from api_profile p
         join api_wallet w
         on w.profile_id = p.id
@@ -122,11 +162,13 @@ def mylikes(request):
         for row in rows:
             like_list.append({
                 "contract": row[0],
-                "token_id": row[1]
+                "token_id": row[1],
+                "timestamp": row[3]
             })
 
     #my_wallet_addresses = list(Wallet.objects.filter(profile=wallet.profile).values_list("address"))
 
+    '''
     response_body = {
             "data": { 
                 "like_list": like_list,
@@ -135,6 +177,11 @@ def mylikes(request):
                 "my_address": public_address
             }
         }
+    '''
+    response_body = {
+            "data": like_list
+        }
+    cache.set(str(public_address)+"_likes", response_body)
     return JsonResponse(response_body)
 
 
@@ -180,7 +227,7 @@ class TokenView(View):
         # Check to see if it's a valid address format
         # example: "0x0000000000001b84b1cb32787b0d64758d019317"
 
-        if not bool(re.match(r"0x([0-9a-z]{40})+$", asset_contract_address)):
+        if not bool(re.match(r"0x([0-9a-zA-Z]{40})+$", asset_contract_address)):
             # Return early with error message
             status_code = 400
             response_body = {
@@ -296,7 +343,7 @@ class TokenView(View):
         # Check to see if it's a valid address format
         # example: "0x0000000000001b84b1cb32787b0d64758d019317"
 
-        if not bool(re.match(r"0x([0-9a-z]{40})+$", asset_contract_address)):
+        if not bool(re.match(r"0x([0-9a-zA-Z]{40})+$", asset_contract_address)):
             # Return early with error message
             status_code = 400
             response_body = {
@@ -383,6 +430,11 @@ class TokenView(View):
         else:
             LikeHistory.objects.create(profile=wallet.profile, token=token, value=value)
 
+        # Invalidate caches for anything dependent on likes
+        cache.delete(str(public_address)+"_likes")
+        cache.delete(str(public_address)+"_liked_tokens")
+        cache.delete("leaderboard")
+        cache.delete("featured")
 
         # Return empty 200
         return HttpResponse("")
@@ -455,6 +507,12 @@ class FeaturedView(View):
         Params: none
         '''
 
+        response_body = cache.get("featured")
+        if response_body:
+            print("Used featured cache")
+            return JsonResponse(response_body)
+
+        
         
         limit = 50
         max_item_count = request.GET.get('maxItemCount')
@@ -534,6 +592,8 @@ class FeaturedView(View):
         response_body = {
             "data": sorted(opensea_json, key = lambda i: i['showtime']['like_count'], reverse=True)
         }
+
+        cache.set("featured", response_body)
         return JsonResponse(response_body)
 
 
@@ -545,10 +605,11 @@ class OwnedView(View):
 
     def get(self, request):
         '''
-        Params: address (optional), maxItemCount (optional)
+        Params: address (optional), maxItemCount (optional), useCached (optional)
         '''
 
         address = request.GET.get('address')
+        use_cached = request.GET.get('useCached')
 
         limit = 50
         max_item_count = request.GET.get('maxItemCount')
@@ -556,7 +617,7 @@ class OwnedView(View):
             limit = int(max_item_count)
 
 
-        if not address or not bool(re.match(r"0x([0-9a-z]{40})+$", address)):
+        if not address or not bool(re.match(r"0x([0-9a-zA-Z]{40})+$", address)):
             try:
                 did_token = parse_authorization_header_value(
                     request.headers.get('Authorization'),
@@ -588,7 +649,12 @@ class OwnedView(View):
                             }
                         }
                 return JsonResponse(response_body, status=status_code)
-        
+
+        if use_cached:
+            response_body = cache.get(address+"_owned")
+            if response_body:
+                print("Used owned cache")
+                return JsonResponse(response_body)
 
 
         wallet = Wallet.objects.filter(address=address).first()
@@ -645,6 +711,9 @@ class OwnedView(View):
         response_body = {
             "data": sorted(asset_list, key = lambda i: i['showtime']['like_count'], reverse=True)
         }
+
+        cache.set(address+"_owned", response_body)
+
         return JsonResponse(response_body)
 
 
@@ -667,7 +736,7 @@ class LikedView(View):
             limit = int(max_item_count)
 
 
-        if not address or not bool(re.match(r"0x([0-9a-z]{40})+$", address)):
+        if not address or not bool(re.match(r"0x([0-9a-zA-Z]{40})+$", address)):
             try:
                 did_token = parse_authorization_header_value(
                     request.headers.get('Authorization'),
@@ -711,6 +780,11 @@ class LikedView(View):
             }
             return JsonResponse(response_body)
 
+
+        response_body = cache.get(address+"_liked_tokens")
+        if response_body:
+            print("Used liked tokens cache")
+            return JsonResponse(response_body)
 
         with connection.cursor() as cursor:
             cursor.execute("""
@@ -783,6 +857,7 @@ class LikedView(View):
         response_body = {
             "data": sorted(opensea_json, key = lambda i: i['showtime']['like_count'], reverse=True)
         }
+        cache.set(address+"_liked_tokens", response_body)
         return JsonResponse(response_body)
 
 
@@ -906,6 +981,12 @@ class LeaderboardView(View):
         Params: none
         '''
 
+        response_body = cache.get("leaderboard")
+
+        if response_body:
+            print("Used leaderboard cache")
+            return JsonResponse(response_body)
+
         top_creators = []
         with connection.cursor() as cursor:
             cursor.execute("""
@@ -933,6 +1014,8 @@ class LeaderboardView(View):
         response_body = {
             "data": top_creators
         }
+
+        cache.set("leaderboard", response_body)
         return JsonResponse(response_body)
 
 
@@ -1049,7 +1132,7 @@ class ContractView(View):
         # Check to see if it's a valid address format
         # example: "0xfa2c6c8599026583dbc274484e5a088880c8de8e"
 
-        if not bool(re.match(r"0x([0-9a-z]{40})+$", address)):
+        if not bool(re.match(r"0x([0-9a-zA-Z]{40})+$", address)):
             # Return early with error message
             status_code = 400
             response_body = {
@@ -1149,7 +1232,7 @@ class UserAddView(View):
         # Check to see if it's a valid address format
         # example: "0x0000000000001b84b1cb32787b0d64758d019317"
 
-        if not bool(re.match(r"0x([0-9a-z]{40})+$", address)):
+        if not bool(re.match(r"0x([0-9a-zA-Z]{40})+$", address)):
             # Return early with error message
             status_code = 400
             response_body = {

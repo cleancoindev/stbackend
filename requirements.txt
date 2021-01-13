@@ -1,7 +1,7 @@
 Django==3.1.2
 PyMySQL==0.10.1
 mysqlclient==2.0.1
-requests==2.24.0
+requests==2.22.0
 requests_toolbelt==0.9.1
 lxml==4.6.2
 django-rest-framework==0.1.0
