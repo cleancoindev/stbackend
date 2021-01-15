@@ -173,8 +173,7 @@ def mylikes(request):
             "data": { 
                 "like_list": like_list,
                 "my_name": wallet.profile.name,
-                "my_img_url": wallet.profile.img_url,
-                "my_address": public_address
+                "my_img_url": wallet.profile.img_url
             }
         }
     '''
@@ -183,7 +182,6 @@ def mylikes(request):
         }
     cache.set(str(public_address)+"_likes", response_body)
     return JsonResponse(response_body)
-
 
 
 
@@ -273,6 +271,7 @@ class TokenView(View):
 
 
     def post(self, request, asset_contract_address, token_id):
+        
         '''
         Params:
         1. address (required - in path)
@@ -280,6 +279,7 @@ class TokenView(View):
         3. action (required - in body) - values include "like" & "unlike"
         '''
 
+        '''
         try:
             did_token = parse_authorization_header_value(
                 request.headers.get('Authorization'),
@@ -310,13 +310,47 @@ class TokenView(View):
                         }
                     }
             return JsonResponse(response_body, status=status_code)
+        '''
 
         json_body = json.loads(request.body.decode())
+        
+        
+        public_address = request.headers.get('UserAddress')
+
+        #TEMP - remove
+        if not public_address:
+            public_address = json_body.get('user_address')
+
+        if not public_address:
+            # Return early with error message
+            status_code = 400
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Required parameter missing: address"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+        if not bool(re.match(r"0x([0-9a-zA-Z]{40})+$", public_address)):
+            # Return early with error message
+            status_code = 400
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "address not in expected format"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+        print(public_address)
+
+        
         action = json_body.get('action')
         creator_address = json_body.get('creator_address')
         creator_name = json_body.get('creator_name')
         creator_img_url = json_body.get('creator_img_url')
-        
+
 
         if not asset_contract_address:
             # Return early with error message
@@ -655,16 +689,24 @@ class OwnedView(View):
             if response_body:
                 print("Used owned cache")
                 return JsonResponse(response_body)
+            else:
+                return JsonResponse({ "data": [] })
 
 
         wallet = Wallet.objects.filter(address=address).first()
         if wallet and wallet.profile:
-            address_list = list(Wallet.objects.filter(profile=wallet.profile).values_list("address"))
+            address_list = list(Wallet.objects.filter(profile=wallet.profile).values_list("address", flat=True))
         else:
             address_list = [address]
 
         asset_list = []
         for owner in address_list:
+
+            owner_to_search = owner
+
+            # For testing
+            if owner=="0x9D23d6DA969460bD6374e7dBd6E6c5CdA032F017":
+                owner_to_search = "0x73113a65011acbad72730577defd95aaf268e22a"
                 
             # Query
             url = "https://api.opensea.io/api/v1/assets"
@@ -672,7 +714,7 @@ class OwnedView(View):
                 "order_direction":"desc",
                 "offset":"0",
                 "order_by": "sale_price",
-                "owner": owner,
+                "owner": owner_to_search,
                 "limit":limit #Capped at 50
             }
             response = requests.request("GET", url, params=querystring)
@@ -725,7 +767,7 @@ class LikedView(View):
 
     def get(self, request):
         '''
-        Params: address (optional), maxItemCount
+        Params: address, maxItemCount (optional)
         '''
 
         address = request.GET.get('address')
@@ -737,39 +779,14 @@ class LikedView(View):
 
 
         if not address or not bool(re.match(r"0x([0-9a-zA-Z]{40})+$", address)):
-            try:
-                did_token = parse_authorization_header_value(
-                    request.headers.get('Authorization'),
-                ).replace("%3D","=")
-            except:
-                
-                status_code = 400
-                response_body = {
+            status_code = 400
+            response_body = {
                             "error": {
                                 "code": status_code,
-                                "message": "Missing address and authentication token"
+                                "message": "Missing address"
                             }
                         }
-                return JsonResponse(response_body, status=status_code)
-
-            magic = Magic(api_secret_key='pk_test_7FF6C3036AF5DE22')
-
-            # Validate the did_token.
-            try:
-                magic.Token.validate(did_token)
-                address = magic.Token.get_public_address(did_token)
-            except:
-                # Return early with error message
-                status_code = 401
-                response_body = {
-                            "error": {
-                                "code": status_code,
-                                "message": "Missing address and expired authentication token"
-                            }
-                        }
-                return JsonResponse(response_body, status=status_code)
-        
-
+            return JsonResponse(response_body, status=status_code)
 
         wallet = Wallet.objects.filter(address=address).first()
 
@@ -813,50 +830,55 @@ class LikedView(View):
                 contract_list.append(row[0])
                 token_list.append(row[1])
 
-        # TBD - create the token list query
-        # Query
-        url = "https://api.opensea.io/api/v1/assets"
-        querystring = {
-            "order_direction":"desc",
-            "offset":"0",
-            "order_by": "sale_price",
-            "token_ids": token_list,
-            "asset_contract_addresses": contract_list,
-            "limit":limit #Capped at 50
-        }
-        response = requests.request("GET", url, params=querystring)
+        if rows:
+            
+            # Query
+            url = "https://api.opensea.io/api/v1/assets"
+            querystring = {
+                "order_direction":"desc",
+                "offset":"0",
+                "order_by": "sale_price",
+                "token_ids": token_list,
+                "asset_contract_addresses": contract_list,
+                "limit":limit #Capped at 50
+            }
+            response = requests.request("GET", url, params=querystring)
 
-        if response.status_code!=200:
-            status_code = response.status_code
-            response_body = {
-                "error": {
-                    "code": status_code,
-                    "message": "Error from OpenSea API"
+            if response.status_code!=200:
+                status_code = response.status_code
+                response_body = {
+                    "error": {
+                        "code": status_code,
+                        "message": "Error from OpenSea API"
+                    }
                 }
+                return JsonResponse(response_body, status=status_code)
+
+
+            opensea_json = response.json().get('assets')
+
+            for asset in opensea_json:
+
+                # Add the "showtime" data to the original response
+                if asset.get('token_id') and asset.get('asset_contract') and asset['asset_contract'].get('address'):
+                    like_count = list(LikeHistory.objects.filter(
+                        token__token_identifier=asset['token_id'],
+                        token__contract__address=asset['asset_contract']['address']
+                    ).aggregate(Sum('value')).values())[0] or 0
+                else:
+                    like_count = 0
+
+                asset['showtime'] = {
+                    "like_count": like_count
+                }
+
+            response_body = {
+                "data": sorted(opensea_json, key = lambda i: i['showtime']['like_count'], reverse=True)
             }
-            return JsonResponse(response_body, status=status_code)
-
-
-        opensea_json = response.json().get('assets')
-
-        for asset in opensea_json:
-
-            # Add the "showtime" data to the original response
-            if asset.get('token_id') and asset.get('asset_contract') and asset['asset_contract'].get('address'):
-                like_count = list(LikeHistory.objects.filter(
-                    token__token_identifier=asset['token_id'],
-                    token__contract__address=asset['asset_contract']['address']
-                ).aggregate(Sum('value')).values())[0] or 0
-            else:
-                like_count = 0
-
-            asset['showtime'] = {
-                "like_count": like_count
+        else:
+            response_body = {
+                "data": []
             }
-
-        response_body = {
-            "data": sorted(opensea_json, key = lambda i: i['showtime']['like_count'], reverse=True)
-        }
         cache.set(address+"_liked_tokens", response_body)
         return JsonResponse(response_body)
 
@@ -910,6 +932,8 @@ class CollectionView(View):
         '''
 
         collection = request.GET.get('collection')
+        
+
 
         limit = 50
         max_item_count = request.GET.get('maxItemCount')
@@ -920,6 +944,14 @@ class CollectionView(View):
         if not collection or not bool(re.match(r"([a-z\-])+$", collection)):
             # set default
             collection = "superrare"
+
+        
+
+        response_body = cache.get(collection+"_collection")
+
+        if response_body:
+            print("Used collection cache")
+            return JsonResponse(response_body)
 
 
         # TBD - create the token list query
@@ -964,8 +996,10 @@ class CollectionView(View):
             }
 
         response_body = {
-            "data": sorted(opensea_json, key = lambda i: i['showtime']['like_count'], reverse=True)
+            "data": opensea_json #sorted(opensea_json, key = lambda i: i['showtime']['like_count'], reverse=True)
         }
+
+        cache.set(collection+"_collection", response_body)
         return JsonResponse(response_body)
 
 
@@ -1025,17 +1059,16 @@ class LeaderboardView(View):
 
 class ProfileView(View):
     '''
-    Lists the tokens owned for an address
+    Lists the profile details for an address
     '''
 
     def get(self, request):
         '''
-        Params: address (optional - in query string)
+        Params: address (required - in query string)
         '''
-        address = request.GET.get('address')
+        public_address = request.GET.get('address')
 
-        '''
-        if not address:
+        if not public_address:
             # Return early with error message
             status_code = 400
             response_body = {
@@ -1046,10 +1079,7 @@ class ProfileView(View):
                     }
             return JsonResponse(response_body, status=status_code)
 
-        # Check to see if it's a valid address format
-        # example: "0x0000000000001b84b1cb32787b0d64758d019317"
-
-        if not bool(re.match(r"0x([0-9a-z]{40})+$", address)):
+        if not bool(re.match(r"0x([0-9a-zA-Z]{40})+$", public_address)):
             # Return early with error message
             status_code = 400
             response_body = {
@@ -1059,52 +1089,31 @@ class ProfileView(View):
                         }
                     }
             return JsonResponse(response_body, status=status_code)
-        '''
 
 
-        # Continue with query
-        url = "https://api.opensea.io/api/v1/assets"
-        querystring = {
-            "owner":address,
-            "order_direction":"desc",
-            "offset":"0",
-            "limit":"20" #Capped at 50
-        }
-        response = requests.request("GET", url, params=querystring)
 
-        if response.status_code!=200:
-            status_code = response.status_code
-            response_body = {
-                "error": {
-                    "code": status_code,
-                    "message": "Error from OpenSea API"
-                }
-            }
-            return JsonResponse(response_body, status=status_code)
+        response_body = cache.get(str(public_address)+"_info")
 
+        if response_body:
+            print("Used profile cache")
+            return JsonResponse(response_body)
 
-        opensea_json = response.json().get('assets')
+        wallet = Wallet.objects.get_or_create(address=public_address)[0]
+        if not wallet.profile:
+            wallet.profile = Profile.objects.create()
+            wallet.save()
 
-        for asset in opensea_json:
-
-            # Add the "showtime" data to the original response
-            if asset.get('token_id') and asset.get('asset_contract') and asset['asset_contract'].get('address'):
-                like_count = list(LikeHistory.objects.filter(
-                    token__token_identifier=asset['token_id'],
-                    token__contract__address=asset['asset_contract']['address']
-                ).aggregate(Sum('value')).values())[0] or 0
-            else:
-                like_count = 0
-
-            asset['showtime'] = {
-                "like_count": like_count
-            }
+        wallet_addresses = list(Wallet.objects.filter(profile=wallet.profile).values_list("address"))
 
         response_body = {
-            "data": {
-                "owned": opensea_json
+                "data": { 
+                    "name": wallet.profile.name if wallet.profile else None,
+                    "img_url": wallet.profile.img_url if wallet.profile else None,
+                    "wallet_addresses": wallet_addresses,
+                }
             }
-        }
+
+        cache.set(str(public_address)+"_info", response_body)
         return JsonResponse(response_body)
 
 
