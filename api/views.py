@@ -46,8 +46,15 @@ from magic_admin import Magic
 from magic_admin.utils.http import parse_authorization_header_value
 #from magic_admin.error import DIDTokenError
 #from magic_admin.error import RequestError
+from stbackend.settings import SHOWTIME_FRONTEND_API_KEY
 
 from .models import Contract, Token, LikeHistory, Profile, Wallet
+
+def valid_api_key(api_key):
+    print(api_key)
+    print(SHOWTIME_FRONTEND_API_KEY)
+    return api_key==SHOWTIME_FRONTEND_API_KEY
+
 
 @method_decorator(csrf_exempt, name='dispatch')
 def index(request):
@@ -55,7 +62,6 @@ def index(request):
     Index page on the API
     '''
     return HttpResponse("Index")
-
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -68,39 +74,16 @@ def mylikes(request):
     Params: address (required)
     '''
 
-    '''
-    try:
-        did_token = parse_authorization_header_value(
-            request.headers.get('Authorization'),
-        ).replace("%3D","=")
-    except:
-        status_code = 400
-        response_body = {
-                    "error": {
-                        "code": status_code,
-                        "message": "Missing authentication token"
-                    }
-                }
-        return JsonResponse(response_body, status=status_code)
-
-    magic = Magic(api_secret_key='pk_test_7FF6C3036AF5DE22')
-
-    # Validate the did_token.
-    try:
-        magic.Token.validate(did_token)
-        public_address = magic.Token.get_public_address(did_token)
-    except:
-        # Return early with error message. The 401 will trigger a signout on the frontend
+    if not valid_api_key(request.headers.get('X-API-Key')):
         status_code = 401
         response_body = {
                     "error": {
                         "code": status_code,
-                        "message": "Invalid or expired authentication token"
+                        "message": "Unauthorized"
                     }
                 }
         return JsonResponse(response_body, status=status_code)
-    
-    '''
+
 
     public_address = request.GET.get('address')
 
@@ -200,6 +183,17 @@ class TokenView(View):
         Params: token (required)
         '''
 
+        if not valid_api_key(request.headers.get('X-API-Key')):
+            status_code = 401
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Unauthorized"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+            
+
         if not asset_contract_address:
             # Return early with error message
             status_code = 400
@@ -279,38 +273,15 @@ class TokenView(View):
         3. action (required - in body) - values include "like" & "unlike"
         '''
 
-        '''
-        try:
-            did_token = parse_authorization_header_value(
-                request.headers.get('Authorization'),
-            ).replace("%3D","=")
-        except:
+        if not valid_api_key(request.headers.get('X-API-Key')):
             status_code = 401
             response_body = {
                         "error": {
                             "code": status_code,
-                            "message": "Missing authentication token"
+                            "message": "Unauthorized"
                         }
                     }
             return JsonResponse(response_body, status=status_code)
-
-        magic = Magic(api_secret_key='pk_test_7FF6C3036AF5DE22')
-
-        # Validate the did_token.
-        try:
-            magic.Token.validate(did_token)
-            public_address = magic.Token.get_public_address(did_token)
-        except:
-            # Return early with error message. The 401 will trigger a signout on the frontend
-            status_code = 401
-            response_body = {
-                        "error": {
-                            "code": status_code,
-                            "message": "Invalid or expired authentication token"
-                        }
-                    }
-            return JsonResponse(response_body, status=status_code)
-        '''
 
         json_body = json.loads(request.body.decode())
         
@@ -483,6 +454,16 @@ class SearchView(View):
         Params: q (required - in query string)
         '''
 
+        if not valid_api_key(request.headers.get('X-API-Key')):
+            status_code = 401
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Unauthorized"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
         query = request.GET.get('q')
         if not query or query.strip()=="":
             # Return early with error message
@@ -539,6 +520,16 @@ class FeaturedView(View):
         '''
         Params: none
         '''
+
+        if not valid_api_key(request.headers.get('X-API-Key')):
+            status_code = 401
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Unauthorized"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
 
         opensea_json = cache.get("featured")
         if opensea_json is None:
@@ -637,6 +628,17 @@ class OwnedView(View):
         '''
         Params: address (optional), maxItemCount (optional), useCached (optional)
         '''
+
+        if not valid_api_key(request.headers.get('X-API-Key')):
+            status_code = 401
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Unauthorized"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
 
         address = request.GET.get('address')
         use_cached = request.GET.get('useCached')
@@ -772,6 +774,17 @@ class LikedView(View):
         Params: address, maxItemCount (optional)
         '''
 
+        if not valid_api_key(request.headers.get('X-API-Key')):
+            status_code = 401
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Unauthorized"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+
         address = request.GET.get('address')
 
         limit = 50
@@ -900,6 +913,16 @@ class CollectionListView(View):
         Params: none
         '''
 
+        if not valid_api_key(request.headers.get('X-API-Key')):
+            status_code = 401
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Unauthorized"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
 
         response_body = {
             "data": [
@@ -936,6 +959,17 @@ class CollectionView(View):
         '''
         Params: collection (required), maxItemCount
         '''
+
+        if not valid_api_key(request.headers.get('X-API-Key')):
+            status_code = 401
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Unauthorized"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+            
 
         collection = request.GET.get('collection')
         
@@ -1023,6 +1057,17 @@ class LeaderboardView(View):
         Params: none
         '''
 
+        if not valid_api_key(request.headers.get('X-API-Key')):
+            status_code = 401
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Unauthorized"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+
         response_body = cache.get("leaderboard")
 
         if response_body:
@@ -1074,6 +1119,19 @@ class ProfileView(View):
         '''
         Params: address (required - in query string)
         '''
+
+        if not valid_api_key(request.headers.get('X-API-Key')):
+            status_code = 401
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Unauthorized"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+
+
         public_address = request.GET.get('address')
 
         if not public_address:
@@ -1134,6 +1192,18 @@ class ContractView(View):
         '''
         Params: address (required - in path)
         '''
+
+        if not valid_api_key(request.headers.get('X-API-Key')):
+            status_code = 401
+            response_body = {
+                        "error": {
+                            "code": status_code,
+                            "message": "Unauthorized"
+                        }
+                    }
+            return JsonResponse(response_body, status=status_code)
+
+
 
         if not address:
             # Return early with error message
