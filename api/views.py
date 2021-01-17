@@ -51,8 +51,6 @@ from stbackend.settings import SHOWTIME_FRONTEND_API_KEY
 from .models import Contract, Token, LikeHistory, Profile, Wallet
 
 def valid_api_key(api_key):
-    print(api_key)
-    print(SHOWTIME_FRONTEND_API_KEY)
     return api_key==SHOWTIME_FRONTEND_API_KEY
 
 
@@ -534,12 +532,13 @@ class FeaturedView(View):
         opensea_json = cache.get("featured")
         if opensea_json is None:
 
-            limit = 50
-            max_item_count = request.GET.get('maxItemCount')
-            if max_item_count and max_item_count.isdigit() and int(max_item_count)<=50:
-                limit = int(max_item_count)
+            limit = request.GET.get('limit')
+            if limit and limit.isdigit() and int(limit)<=50:
+                limit = int(limit)
+            else:
+                limit = 50
 
-
+            '''
             with connection.cursor() as cursor:
                 cursor.execute("""
                 select c.address, token_identifier, SUM(value) as likes
@@ -566,14 +565,80 @@ class FeaturedView(View):
                 for row in rows:
                     contract_list.append(row[0])
                     token_list.append(row[1])
+            '''
+
+            featured_assets = [
+                {
+                    "name": "Ikaros",
+                    "contract_address":"0xb932a70a57673d89f4acffbe830e8ed7f75fb9e0",
+                    "token_id": "5178",
+                    "link": "https://opensea.io/assets/0xb932a70a57673d89f4acffbe830e8ed7f75fb9e0/5178",
+                },
+                {
+                    "name": "Rebirth of Venus",
+                    "contract_address":"0xb932a70a57673d89f4acffbe830e8ed7f75fb9e0",
+                    "token_id": "16297",
+                    "link": "https://opensea.io/assets/0xb932a70a57673d89f4acffbe830e8ed7f75fb9e0/16297"
+                },
+                {
+                    "name": "UNISWAP - Slimesunday",
+                    "contract_address":"0x397206a955a6a20d1688ede77a7c767a101a8cfc",
+                    "token_id": "4800010007",
+                    "link": "https://opensea.io/assets/0x397206a955a6a20d1688ede77a7c767a101a8cfc/4800010007"
+                },
+                {
+                    "name": "Carl Cox Portrait",
+                    "contract_address":"0xc937c594cb126fed0db22b41ab070bc206080825",
+                    "token_id": "6100010025",
+                    "link": "https://opensea.io/assets/0xc937c594cb126fed0db22b41ab070bc206080825/6100010025"
+                },
+                {
+                    "name": "TEN #2/10 - SYM",
+                    "contract_address":"0xfdd633b978f181d5a78ab10bc8e03466bcdf264a",
+                    "token_id": "12100020002",
+                    "link": "https://opensea.io/assets/0xfdd633b978f181d5a78ab10bc8e03466bcdf264a/12100020002"
+                },
+                {
+                    "name": "Walking on the edge",
+                    "contract_address":"0xd07dc4262bcdbf85190c01c996b4c06a461d2430",
+                    "token_id": "54837",
+                    "link": "https://opensea.io/assets/0xd07dc4262bcdbf85190c01c996b4c06a461d2430/54837"
+                },
+                {
+                    "name": "Modern Sculpture",
+                    "contract_address":"0xd07dc4262bcdbf85190c01c996b4c06a461d2430",
+                    "token_id": "65526",
+                    "link": "https://opensea.io/assets/0xd07dc4262bcdbf85190c01c996b4c06a461d2430/65526"
+                },
+                {
+                    "name": "Face Machine",
+                    "contract_address":"0xb932a70a57673d89f4acffbe830e8ed7f75fb9e0",
+                    "token_id": "13307",
+                    "link": "https://opensea.io/assets/0xb932a70a57673d89f4acffbe830e8ed7f75fb9e0/13307"
+                },
+                {
+                    "name": "Mona Lisa re-imagined",
+                    "contract_address":"0x41a322b28d0ff354040e2cbc676f0320d8c8850d",
+                    "token_id": "1611",
+                    "link": "https://opensea.io/assets/0x41a322b28d0ff354040e2cbc676f0320d8c8850d/1611"
+                },
+            ]
+
+            contract_list = []
+            token_list = []
+
+            i = 0
+            for asset in featured_assets:
+                contract_list.append(asset['contract_address'])
+                token_list.append(asset['token_id'])
+                asset['order'] = i
+                i = i+1
 
             # TBD - create the token list query
             # Query
             url = "https://api.opensea.io/api/v1/assets"
             querystring = {
-                "order_direction":"desc",
                 "offset":"0",
-                "order_by": "sale_price",
                 "token_ids": token_list,
                 "asset_contract_addresses": contract_list,
                 "limit":limit #Capped at 50
@@ -591,6 +656,14 @@ class FeaturedView(View):
                 return JsonResponse(response_body, status=status_code)
 
             opensea_json = response.json().get('assets')
+            for opensea_asset in opensea_json:
+                for fa in featured_assets:
+                    if fa["contract_address"] == opensea_asset["asset_contract"]["address"] and fa["token_id"]==opensea_asset["token_id"]:
+                        opensea_asset['showtime_order'] = fa["order"]
+
+            opensea_json = sorted(opensea_json, key = lambda i: i['showtime_order'])
+
+
             cache.set("featured", opensea_json, None)
         else:
             print("Used featured cache")
@@ -611,7 +684,7 @@ class FeaturedView(View):
             }
 
         response_body = {
-            "data": sorted(opensea_json, key = lambda i: i['showtime']['like_count'], reverse=True)
+            "data": opensea_json
         }
 
         
@@ -626,7 +699,7 @@ class OwnedView(View):
 
     def get(self, request):
         '''
-        Params: address (optional), maxItemCount (optional), useCached (optional)
+        Params: address (optional), limit (optional), use_cached (optional)
         '''
 
         if not valid_api_key(request.headers.get('X-API-Key')):
@@ -641,12 +714,13 @@ class OwnedView(View):
 
 
         address = request.GET.get('address')
-        use_cached = request.GET.get('useCached')
+        use_cached = request.GET.get('use_cached')
 
-        limit = 50
-        max_item_count = request.GET.get('maxItemCount')
-        if max_item_count and max_item_count.isdigit() and int(max_item_count)<=50:
-            limit = int(max_item_count)
+        limit = request.GET.get('limit')
+        if limit and limit.isdigit() and int(limit)<=50:
+            limit = int(limit)
+        else:
+            limit = 50
 
 
         if not address or not bool(re.match(r"0x([0-9a-zA-Z]{40})+$", address)):
@@ -740,21 +814,27 @@ class OwnedView(View):
 
                 for asset in opensea_json:
 
-                    # Add the "showtime" data to the original response
-                    if asset.get('token_id') and asset.get('asset_contract') and asset['asset_contract'].get('address'):
-                        like_count = list(LikeHistory.objects.filter(
-                            token__token_identifier=asset['token_id'],
-                            token__contract__address=asset['asset_contract']['address']
-                        ).aggregate(Sum('value')).values())[0] or 0
-                    else:
-                        like_count = 0
-
-                    asset['showtime'] = {
-                        "like_count": like_count
-                    }
+                    
 
                     asset_list.append(asset)
+            
             cache.set(address+"_owned", asset_list, None)
+
+
+        for asset in asset_list:
+            # Add the "showtime" data to the original response
+            if asset.get('token_id') and asset.get('asset_contract') and asset['asset_contract'].get('address'):
+                like_count = list(LikeHistory.objects.filter(
+                    token__token_identifier=asset['token_id'],
+                    token__contract__address=asset['asset_contract']['address']
+                ).aggregate(Sum('value')).values())[0] or 0
+            else:
+                like_count = 0
+
+            asset['showtime'] = {
+                "like_count": like_count
+            }
+            
 
         response_body = {
             "data": sorted(asset_list, key = lambda i: i['showtime']['like_count'], reverse=True)
@@ -771,7 +851,7 @@ class LikedView(View):
 
     def get(self, request):
         '''
-        Params: address, maxItemCount (optional)
+        Params: address, limit (optional)
         '''
 
         if not valid_api_key(request.headers.get('X-API-Key')):
@@ -787,10 +867,11 @@ class LikedView(View):
 
         address = request.GET.get('address')
 
-        limit = 50
-        max_item_count = request.GET.get('maxItemCount')
-        if max_item_count and max_item_count.isdigit() and int(max_item_count)<=50:
-            limit = int(max_item_count)
+        limit = request.GET.get('limit')
+        if limit and limit.isdigit() and int(limit)<=50:
+            limit = int(limit)
+        else:
+            limit = 50
 
 
         if not address or not bool(re.match(r"0x([0-9a-zA-Z]{40})+$", address)):
@@ -929,19 +1010,33 @@ class CollectionListView(View):
                 
                 {
                     "name": "SuperRare",
-                    "value": "superrare"
+                    "value": "superrare",
+                    "order_by": "sale_price",
+                    "order_direction": "desc"
+                },
+                {
+                    "name": "Async Art",
+                    "value": "async-art",
+                    "order_by": "sale_price",
+                    "order_direction": "desc"
                 },
                 {
                     "name": "Rarible",
-                    "value": "rarible"
+                    "value": "rarible",
+                    "order_by": "visitor_count",
+                    "order_direction": "desc"
                 },
                 {
                     "name": "MakersPlace",
-                    "value": "makersplace"
+                    "value": "makersplace",
+                    "order_by": "sale_price",
+                    "order_direction": "desc"
                 },
                 {
                     "name": "Known Origin",
-                    "value": "known-origin"
+                    "value": "known-origin",
+                    "order_by": "visitor_count",
+                    "order_direction": "desc"
                 }
             ]
         }
@@ -957,7 +1052,7 @@ class CollectionView(View):
 
     def get(self, request):
         '''
-        Params: collection (required), maxItemCount
+        Params: collection (required), limit
         '''
 
         if not valid_api_key(request.headers.get('X-API-Key')):
@@ -972,13 +1067,21 @@ class CollectionView(View):
             
 
         collection = request.GET.get('collection')
+        order_by = request.GET.get('order_by')
+        if not order_by:
+            order_by = "sale_price"
+        
+        order_direction = request.GET.get('order_direction')
+        if not order_direction:
+            order_direction = "desc"
         
 
 
-        limit = 50
-        max_item_count = request.GET.get('maxItemCount')
-        if max_item_count and max_item_count.isdigit() and int(max_item_count)<=50:
-            limit = int(max_item_count)
+        limit = request.GET.get('limit')
+        if limit and limit.isdigit() and int(limit)<=50:
+            limit = int(limit)
+        else:
+            limit = 50
 
 
         if not collection or not bool(re.match(r"([a-z\-])+$", collection)):
@@ -987,7 +1090,7 @@ class CollectionView(View):
 
         
 
-        opensea_json = cache.get(collection+"_collection")
+        opensea_json = cache.get(collection+"_collection_"+order_by+"_"+order_direction)
 
         if opensea_json is None:
                 
@@ -997,9 +1100,9 @@ class CollectionView(View):
             # Query
             url = "https://api.opensea.io/api/v1/assets"
             querystring = {
-                "order_direction":"desc",
+                "order_direction":order_direction,
                 "offset":"0",
-                "order_by": "visitor_count",
+                "order_by": order_by,
                 "collection": collection,
                 "limit":limit #Capped at 50
             }
@@ -1017,7 +1120,7 @@ class CollectionView(View):
 
 
             opensea_json = response.json().get('assets')
-            cache.set(collection+"_collection", opensea_json, None)
+            cache.set(collection+"_collection_"+order_by+"_"+order_direction, opensea_json, None)
         else:
             print("Used collection cache")
 
@@ -1169,8 +1272,8 @@ class ProfileView(View):
             wallet.profile = Profile.objects.create()
             wallet.save()
 
-        wallet_addresses = list(Wallet.objects.filter(profile=wallet.profile).values_list("address"))
-
+        wallet_addresses = list(Wallet.objects.filter(profile=wallet.profile).values_list("address", flat=True))
+        #print(wallet_addresses)
         response_body = {
                 "data": { 
                     "name": wallet.profile.name if wallet.profile else None,
