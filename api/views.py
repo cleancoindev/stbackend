@@ -229,21 +229,26 @@ class TokenView(View):
             return JsonResponse(response_body, status=status_code)
 
 
+        opensea_json = cache.get(asset_contract_address+"_"+token_id)
+        if not opensea_json:
 
-        # Continue with query
-        response = requests.get("https://api.opensea.io/api/v1/asset/{asset_contract_address}/{token_id}".format(asset_contract_address=asset_contract_address, token_id=token_id))
+            # Continue with query
+            response = requests.get("https://api.opensea.io/api/v1/asset/{asset_contract_address}/{token_id}".format(asset_contract_address=asset_contract_address, token_id=token_id))
 
-        if response.status_code!=200:
-            status_code = response.status_code
-            response_body = {
-                "error": {
-                    "code": status_code,
-                    "message": "Error from OpenSea API"
+            if response.status_code!=200:
+                status_code = response.status_code
+                response_body = {
+                    "error": {
+                        "code": status_code,
+                        "message": "Error from OpenSea API"
+                    }
                 }
-            }
-            return JsonResponse(response_body, status=status_code)
+                return JsonResponse(response_body, status=status_code)
 
-        opensea_json = response.json()
+            opensea_json = response.json()
+            cache.set(asset_contract_address+"_"+token_id, opensea_json, None)
+        else:
+            print("Used token cache")
 
         # Add the "showtime" data to the original response
         like_count = list(LikeHistory.objects.filter(
@@ -1074,7 +1079,12 @@ class CollectionView(View):
         order_direction = request.GET.get('order_direction')
         if not order_direction:
             order_direction = "desc"
-        
+
+        offset = request.GET.get('offset')
+        if offset and offset.isdigit() and int(offset)<=50:
+            offset = int(offset)
+        else:
+            offset = 0
 
 
         limit = request.GET.get('limit')
@@ -1104,6 +1114,7 @@ class CollectionView(View):
                 "offset":"0",
                 "order_by": order_by,
                 "collection": collection,
+                "offset": offset,
                 "limit":limit #Capped at 50
             }
             response = requests.request("GET", url, params=querystring)
@@ -1124,8 +1135,51 @@ class CollectionView(View):
         else:
             print("Used collection cache")
 
+
+        hidden_assets = [
+            {
+                "name": "CryptoFinally x Stanley J Collab #1",
+                "contract_address":"0xd07dc4262bcdbf85190c01c996b4c06a461d2430",
+                "token_id": "18359",
+                "link": "https://opensea.io/assets/0xd07dc4262bcdbf85190c01c996b4c06a461d2430/18359"
+            },
+            {
+                "name": "Cum Rag",
+                "contract_address":"0xd07dc4262bcdbf85190c01c996b4c06a461d2430",
+                "token_id": "18232",
+                "link": "https://opensea.io/assets/0xd07dc4262bcdbf85190c01c996b4c06a461d2430/18232"
+            },
+            {
+                "name": "Anjani",
+                "contract_address":"0x60f80121c31a0d46b5279700f9df786054aa5ee5",
+                "token_id": "7665",
+                "link": "https://opensea.io/assets/0x60f80121c31a0d46b5279700f9df786054aa5ee5/7665"
+            },
+            {
+                "name": "#01 The Joy of Bitcoin (Pink) [NSFW]",
+                "contract_address":"0xd07dc4262bcdbf85190c01c996b4c06a461d2430",
+                "token_id": "69135",
+                "link": "https://opensea.io/assets/0xd07dc4262bcdbf85190c01c996b4c06a461d2430/69135"
+            }
+        ]
+
+
+        def check_if_hidden(asset):
+            contract_address = asset['asset_contract']['address']
+            token_id = asset['token_id']
+
+            for ha in hidden_assets:
+                if ha['contract_address']==contract_address and ha['token_id']==token_id:
+                    return True
+
+            return False
         
         for asset in opensea_json:
+
+            
+            
+            hide_asset = False
+
 
             # Add the "showtime" data to the original response
             if asset.get('token_id') and asset.get('asset_contract') and asset['asset_contract'].get('address'):
@@ -1133,11 +1187,14 @@ class CollectionView(View):
                     token__token_identifier=asset['token_id'],
                     token__contract__address=asset['asset_contract']['address']
                 ).aggregate(Sum('value')).values())[0] or 0
+
+                hide_asset = check_if_hidden(asset)
             else:
                 like_count = 0
 
             asset['showtime'] = {
-                "like_count": like_count
+                "like_count": like_count,
+                "hide": hide_asset
             }
 
         response_body = {
